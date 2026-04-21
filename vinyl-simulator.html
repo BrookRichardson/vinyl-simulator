@@ -443,6 +443,50 @@
     transition: width 0.5s linear;
   }
 
+  /* === PRESETS === */
+  .presets {
+    margin-bottom: 20px;
+  }
+
+  .preset-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 8px;
+  }
+
+  .preset-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .preset-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: transparent;
+    border: 1px solid var(--ridge);
+    color: var(--dim);
+    padding: 5px 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+
+  .preset-btn:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  .preset-btn.active {
+    border-color: var(--amber);
+    color: var(--amber);
+    background: rgba(200,134,42,0.08);
+  }
+
   .section-divider {
     display: flex;
     align-items: center;
@@ -495,6 +539,19 @@
     <div class="upload-label">
       Drop your audio file here
       <strong>or click to browse · MP3, WAV, FLAC, AAC</strong>
+    </div>
+  </div>
+
+  <!-- Presets -->
+  <div class="presets">
+    <div class="preset-label">Preset</div>
+    <div class="preset-buttons">
+      <button class="preset-btn" data-preset="digital">Digital</button>
+      <button class="preset-btn" data-preset="audiophile">Audiophile</button>
+      <button class="preset-btn" data-preset="fresh-press">Fresh Press</button>
+      <button class="preset-btn active" data-preset="well-played">Well Played</button>
+      <button class="preset-btn" data-preset="worn-classic">Worn Classic</button>
+      <button class="preset-btn" data-preset="lo-fi">Lo-Fi</button>
     </div>
   </div>
 
@@ -649,6 +706,44 @@ Object.entries(sliders).forEach(([key, el]) => {
     applyLiveKnob(key, v / 100);
   });
 });
+
+// ─── Presets ──────────────────────────────────────────────
+const PRESETS = {
+  'digital':     { warmth:  0, noise:  0, wow:  0, crackle:  0, age:  0, resonance:  0, worn:  0, rumble:  0, ghost:  0, riaa: 50 },
+  'audiophile':  { warmth: 15, noise:  3, wow:  8, crackle:  0, age:  0, resonance: 65, worn:  0, rumble:  8, ghost:  5, riaa: 53 },
+  'fresh-press': { warmth: 25, noise:  8, wow: 12, crackle:  3, age:  0, resonance: 45, worn:  0, rumble: 10, ghost:  8, riaa: 47 },
+  'well-played': { warmth: 50, noise: 40, wow: 35, crackle: 30, age: 20, resonance: 25, worn: 15, rumble: 20, ghost: 15, riaa: 45 },
+  'worn-classic':{ warmth: 75, noise: 70, wow: 50, crackle: 75, age: 80, resonance: 10, worn: 65, rumble: 45, ghost: 55, riaa: 30 },
+  'lo-fi':       { warmth: 90, noise: 85, wow: 75, crackle: 90, age: 55, resonance:  5, worn: 80, rumble: 65, ghost: 50, riaa: 25 },
+};
+
+function applyPreset(name) {
+  const p = PRESETS[name];
+  if (!p) return;
+  Object.entries(p).forEach(([key, value]) => {
+    const el = sliders[key];
+    el.value = value;
+    updateSlider(el);
+    document.getElementById(key + 'Val').textContent = value + '%';
+    applyLiveKnob(key, value / 100);
+  });
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === name);
+  });
+}
+
+// Clear active preset when any slider is moved manually
+Object.values(sliders).forEach(el => {
+  el.addEventListener('input', () => {
+    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+  });
+});
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
+
+applyPreset('well-played');
 
 // ─── Live knob changes ────────────────────────────────────
 function applyLiveKnob(key, v) {
