@@ -668,7 +668,7 @@ function applyLiveKnob(key, v) {
   if (key === 'resonance' && stylusResNode)        stylusResNode.gain.value       = v * 6;
   if (key === 'worn'      && wornShelfNode)        wornShelfNode.gain.value       = -(v * 8);
   if (key === 'rumble'    && rumbleGainNode)       rumbleGainNode.gain.value      = v * 0.4;
-  if (key === 'ghost'     && ghostGainNode)        ghostGainNode.gain.value       = v * 0.025;
+  if (key === 'ghost'     && ghostGainNode)        ghostGainNode.gain.value       = v * 0.2;
   if (key === 'riaa') {
     const m = (v - 0.5) * 2;
     if (riaaMismatchLowNode)  riaaMismatchLowNode.gain.value  = -m * 3;
@@ -847,7 +847,7 @@ function buildGraph() {
   const ghostDelay = ctx.createDelay(2.0);
   ghostDelay.delayTime.value = 60 / 33.33;
   ghostGainNode = ctx.createGain();
-  ghostGainNode.gain.value = ghostAmt * 0.025;
+  ghostGainNode.gain.value = ghostAmt * 0.2;
   waveShaper.connect(ghostDelay);
   ghostDelay.connect(ghostGainNode);
   ghostGainNode.connect(ctx.destination);
@@ -895,8 +895,8 @@ function buildGraph() {
 
   const rumbleBpf = ctx.createBiquadFilter();
   rumbleBpf.type = 'bandpass';
-  rumbleBpf.frequency.value = 30;
-  rumbleBpf.Q.value = 1.5;
+  rumbleBpf.frequency.value = 55;
+  rumbleBpf.Q.value = 0.8;
 
   rumbleGainNode = ctx.createGain();
   rumbleGainNode.gain.value = rumbleAmt * 0.4;
@@ -1067,6 +1067,7 @@ progressWrap.addEventListener('click', e => {
     sourceNode.stop();
     if (noiseNode) noiseNode.stop();
     if (crackleNode) crackleNode.stop();
+    if (rumbleNode) rumbleNode.stop();
     pausedAt = seekTime;
     startPlayback();
   } else {
