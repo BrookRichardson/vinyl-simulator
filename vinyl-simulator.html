@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vinyl Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #120e08;
+    --surface:  #1e1608;
+    --panel:    #261c0c;
+    --ridge:    #332210;
+    --amber:    #c8862a;
+    --gold:     #e0a840;
+    --cream:    #e8d5aa;
+    --dim:      #8a7050;
+    --needle:   #c0c0b8;
+    --vinyl-dark: #111010;
+    --vinyl-mid:  #1a1818;
+    --label:    #d4512a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--cream);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 16px 60px;
+    background-image:
+      radial-gradient(ellipse at 20% 0%, rgba(200,134,42,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 100%, rgba(180,80,20,0.05) 0%, transparent 60%);
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--gold);
+    line-height: 1;
+  }
+
+  .subtitle {
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-top: 8px;
+  }
+
+  /* === MAIN UNIT === */
+  .unit {
+    background: var(--surface);
+    border: 1px solid var(--ridge);
+    border-radius: 4px;
+    width: 100%;
+    max-width: 680px;
+    padding: 32px 28px;
+    box-shadow:
+      0 2px 0 #000 inset,
+      0 0 60px rgba(0,0,0,0.8),
+      0 1px 0 rgba(200,134,42,0.15);
+    position: relative;
+  }
+
+  .unit::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--amber), transparent);
+    opacity: 0.3;
+  }
+
+  /* === RECORD DECK === */
+  .deck {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 32px;
+    position: relative;
+    height: 220px;
+  }
+
+  .platter {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%,
+      #2a2020 0%,
+      #1a1515 8%,
+      #111010 9%,
+      #1a1818 10%,
+      #111010 23%,
+      #1a1818 24%,
+      #111010 38%,
+      #1a1818 39%,
+      #111010 53%,
+      #1a1818 54%,
+      #111010 68%,
+      #1a1818 69%,
+      #111010 83%,
+      #1a1818 84%,
+      #0d0c0c 100%
+    );
+    position: relative;
+    transition: box-shadow 0.4s;
+    box-shadow: 0 0 0 1px #2a2020, 0 4px 30px rgba(0,0,0,0.9), 0 0 0 10px #0d0c0c;
+    flex-shrink: 0;
+  }
+
+  .platter.spinning {
+    animation: spin 1.8s linear infinite;
+    box-shadow: 0 0 0 1px #2a2020, 0 4px 30px rgba(0,0,0,0.9), 0 0 0 10px #0d0c0c, 0 0 20px rgba(200,134,42,0.12);
+  }
+
+  /* Center label */
+  .record-label {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #c8401a 0%, #9c2e10 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.5);
+  }
+
+  .record-label span {
+    font-family: 'Playfair Display', serif;
+    font-size: 7px;
+    color: #f0d090;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  .spindle {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #555;
+    z-index: 2;
+  }
+
+  /* Tonearm */
+  .tonearm-wrap {
+    position: absolute;
+    right: 30px;
+    top: 10px;
+    width: 90px;
+    height: 180px;
+  }
+
+  .tonearm {
+    position: absolute;
+    top: 0; right: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #888 30%, #555 100%);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.6);
+  }
+
+  .arm-line {
+    position: absolute;
+    top: 7px; right: 7px;
+    width: 3px;
+    height: 130px;
+    background: linear-gradient(180deg, #999, #666);
+    transform-origin: top center;
+    transform: rotate(-22deg);
+    border-radius: 2px;
+  }
+
+  .arm-line.playing {
+    transform: rotate(-6deg);
+    transition: transform 1.2s ease;
+  }
+
+  .arm-head {
+    position: absolute;
+    bottom: -6px; left: -3px;
+    width: 9px;
+    height: 9px;
+    background: var(--needle);
+    transform: rotate(22deg);
+    clip-path: polygon(50% 100%, 0% 0%, 100% 0%);
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* === UPLOAD === */
+  .upload-zone {
+    border: 1px dashed var(--ridge);
+    border-radius: 2px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 24px;
+    background: rgba(0,0,0,0.2);
+  }
+
+  .upload-zone:hover, .upload-zone.drag {
+    border-color: var(--amber);
+    background: rgba(200,134,42,0.04);
+  }
+
+  .upload-zone input { display: none; }
+
+  .upload-icon {
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+    opacity: 0.6;
+  }
+
+  .upload-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .upload-label strong {
+    color: var(--amber);
+    display: block;
+    margin-top: 4px;
+    font-size: 0.65rem;
+  }
+
+  /* === CONTROLS === */
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 24px;
+    margin-bottom: 24px;
+  }
+
+  .knob-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .knob-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .knob-label .val {
+    color: var(--amber);
+    font-size: 0.65rem;
+    font-weight: 500;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    border-radius: 0;
+    background: linear-gradient(90deg, var(--amber) var(--p, 50%), var(--ridge) var(--p, 50%));
+    cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--cream);
+    border: 2px solid var(--amber);
+    box-shadow: 0 0 6px rgba(200,134,42,0.4);
+    transition: box-shadow 0.15s;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 10px rgba(200,134,42,0.7);
+  }
+
+  /* === PLAYBACK === */
+  .playback {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .play-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 2px solid var(--amber);
+    background: var(--panel);
+    color: var(--amber);
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, box-shadow 0.2s;
+    flex-shrink: 0;
+  }
+
+  .play-btn:hover:not(:disabled) {
+    background: rgba(200,134,42,0.12);
+    box-shadow: 0 0 16px rgba(200,134,42,0.3);
+  }
+
+  .play-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    border-color: var(--dim);
+    color: var(--dim);
+  }
+
+  .track-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .track-name {
+    font-size: 0.75rem;
+    color: var(--cream);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+
+  .track-time {
+    font-size: 0.6rem;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* VU meter */
+  .vu {
+    display: flex;
+    gap: 2px;
+    align-items: flex-end;
+    height: 32px;
+  }
+
+  .vu-bar {
+    width: 5px;
+    border-radius: 1px;
+    background: var(--ridge);
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .vu-fill {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background: linear-gradient(0deg, var(--amber), var(--gold) 60%, #e05030);
+    transition: height 0.05s;
+    height: 0%;
+  }
+
+  /* Status */
+  .status-bar {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--ridge);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ridge);
+    display: inline-block;
+    margin-right: 8px;
+  }
+
+  .status-dot.active {
+    background: #e08030;
+    box-shadow: 0 0 6px #e08030;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  .status-text {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Progress */
+  .progress-wrap {
+    flex: 1;
+    margin: 0 12px;
+    height: 2px;
+    background: var(--ridge);
+    border-radius: 1px;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--amber);
+    border-radius: 1px;
+    width: 0%;
+    transition: width 0.5s linear;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Vinyl Simulator</h1>
+  <p class="subtitle">Digital · Warmth · Analogue Character</p>
+</header>
+
+<div class="unit">
+
+  <!-- Record deck visual -->
+  <div class="deck">
+    <div class="platter" id="platter">
+      <div class="record-label">
+        <span>ROUGH<br>TRADE<br>◆</span>
+      </div>
+      <div class="spindle"></div>
+    </div>
+    <div class="tonearm-wrap">
+      <div class="tonearm"></div>
+      <div class="arm-line" id="armLine">
+        <div class="arm-head"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-zone" id="dropzone">
+    <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac">
+    <div class="upload-icon">♫</div>
+    <div class="upload-label">
+      Drop your audio file here
+      <strong>or click to browse · MP3, WAV, FLAC, AAC</strong>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="knob-group">
+      <div class="knob-label">Warmth <span class="val" id="warmthVal">50%</span></div>
+      <input type="range" id="warmth" min="0" max="100" value="50">
+    </div>
+    <div class="knob-group">
+      <div class="knob-label">Surface Noise <span class="val" id="noiseVal">40%</span></div>
+      <input type="range" id="noise" min="0" max="100" value="40">
+    </div>
+    <div class="knob-group">
+      <div class="knob-label">Wow &amp; Flutter <span class="val" id="wowVal">35%</span></div>
+      <input type="range" id="wow" min="0" max="100" value="35">
+    </div>
+    <div class="knob-group">
+      <div class="knob-label">Crackle <span class="val" id="crackleVal">30%</span></div>
+      <input type="range" id="crackle" min="0" max="100" value="30">
+    </div>
+  </div>
+
+  <!-- Playback bar -->
+  <div class="playback">
+    <button class="play-btn" id="playBtn" disabled>▶</button>
+    <div class="track-info">
+      <div class="track-name" id="trackName">No file loaded</div>
+      <div class="track-time" id="trackTime">--:-- / --:--</div>
+    </div>
+    <div class="vu">
+      <div class="vu-bar"><div class="vu-fill" id="vu1"></div></div>
+      <div class="vu-bar"><div class="vu-fill" id="vu2"></div></div>
+      <div class="vu-bar"><div class="vu-fill" id="vu3"></div></div>
+      <div class="vu-bar"><div class="vu-fill" id="vu4"></div></div>
+      <div class="vu-bar"><div class="vu-fill" id="vu5"></div></div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div>
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-text" id="statusText">Standby</span>
+    </div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────
+let audioCtx = null;
+let audioBuffer = null;
+let sourceNode = null;
+let noiseNode = null;
+let crackleBuf = null;
+let crackleNode = null;
+let analyser = null;
+let isPlaying = false;
+let startedAt = 0;
+let pausedAt = 0;
+let animFrame = null;
+let vuFrame = null;
+
+// Live gain nodes (for real-time knob updates)
+let noiseGainNode = null;
+let crackleGainNode = null;
+let warmthFilterNode = null;
+let highShelfNode = null;
+let lfoGainNode = null;
+let flutterGainNode = null;
+let waveShaper = null;
+
+// ─── UI Refs ──────────────────────────────────────────────
+const dropzone   = document.getElementById('dropzone');
+const fileInput  = document.getElementById('fileInput');
+const playBtn    = document.getElementById('playBtn');
+const platter    = document.getElementById('platter');
+const armLine    = document.getElementById('armLine');
+const trackName  = document.getElementById('trackName');
+const trackTime  = document.getElementById('trackTime');
+const statusDot  = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const progressFill = document.getElementById('progressFill');
+const progressWrap = document.getElementById('progressWrap');
+const vuBars     = [1,2,3,4,5].map(i => document.getElementById('vu'+i));
+
+const sliders = {
+  warmth:  document.getElementById('warmth'),
+  noise:   document.getElementById('noise'),
+  wow:     document.getElementById('wow'),
+  crackle: document.getElementById('crackle'),
+};
+
+// ─── Slider UI update ─────────────────────────────────────
+function updateSlider(el) {
+  const pct = ((el.value - el.min) / (el.max - el.min)) * 100;
+  el.style.setProperty('--p', pct + '%');
+}
+
+Object.entries(sliders).forEach(([key, el]) => {
+  updateSlider(el);
+  el.addEventListener('input', () => {
+    updateSlider(el);
+    const v = parseInt(el.value);
+    document.getElementById(key + 'Val').textContent = v + '%';
+    applyLiveKnob(key, v / 100);
+  });
+});
+
+// ─── Live knob changes ────────────────────────────────────
+function applyLiveKnob(key, v) {
+  if (!audioCtx) return;
+  if (key === 'warmth') {
+    if (warmthFilterNode) warmthFilterNode.gain.value = v * 5;
+    if (highShelfNode) highShelfNode.gain.value = -(v * 3);
+    if (waveShaper) waveShaper.curve = makeCurve(v * 30 + 1);
+  }
+  if (key === 'noise'   && noiseGainNode)   noiseGainNode.gain.value   = v * 0.04;
+  if (key === 'crackle' && crackleGainNode) crackleGainNode.gain.value = v * 0.25;
+  if (key === 'wow') {
+    if (lfoGainNode)     lfoGainNode.gain.value     = v * 0.006;
+    if (flutterGainNode) flutterGainNode.gain.value = v * 0.0012;
+  }
+}
+
+// ─── Saturation curve ─────────────────────────────────────
+function makeCurve(amount) {
+  const k = amount;
+  const n = 256;
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    curve[i] = ((Math.PI + k) * x) / (Math.PI + k * Math.abs(x));
+  }
+  return curve;
+}
+
+// ─── Noise buffer ─────────────────────────────────────────
+function createNoiseBuffer(ctx, seconds) {
+  const sr = ctx.sampleRate;
+  const len = sr * seconds;
+  const buf = ctx.createBuffer(2, len, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for (let i = 0; i < len; i++) {
+      const wn = Math.random() * 2 - 1;
+      // Paul Kellet's pink noise approximation
+      b0 = 0.99886*b0 + wn*0.0555179;
+      b1 = 0.99332*b1 + wn*0.0750759;
+      b2 = 0.96900*b2 + wn*0.1538520;
+      b3 = 0.86650*b3 + wn*0.3104856;
+      b4 = 0.55000*b4 + wn*0.5329522;
+      b5 = -0.7616*b5 - wn*0.0168980;
+      d[i] = (b0+b1+b2+b3+b4+b5+b6+wn*0.5362) * 0.11;
+      b6 = wn * 0.115926;
+    }
+  }
+  return buf;
+}
+
+// ─── Crackle buffer ───────────────────────────────────────
+function createCrackleBuffer(ctx, seconds) {
+  const sr = ctx.sampleRate;
+  const len = sr * seconds;
+  const buf = ctx.createBuffer(1, len, sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    // Sparse impulses mimicking dust pops
+    if (Math.random() < 0.00015) {
+      const amp = Math.random() * 0.8 + 0.2;
+      const w = Math.floor(Math.random() * 40 + 10);
+      for (let j = 0; j < w && i+j < len; j++) {
+        d[i+j] += amp * Math.exp(-j * 0.15) * (Math.random() * 2 - 1);
+      }
+    }
+  }
+  return buf;
+}
+
+// ─── Build Audio Graph ────────────────────────────────────
+function buildGraph() {
+  const ctx = audioCtx;
+  const warmth = parseInt(sliders.warmth.value) / 100;
+  const noiseAmt = parseInt(sliders.noise.value) / 100;
+  const wowAmt = parseInt(sliders.wow.value) / 100;
+  const crackleAmt = parseInt(sliders.crackle.value) / 100;
+
+  // --- Main source ---
+  sourceNode = ctx.createBufferSource();
+  sourceNode.buffer = audioBuffer;
+
+  // Wow (slow pitch drift, ~0.5 Hz)
+  const delayNode = ctx.createDelay(0.12);
+  delayNode.delayTime.value = 0.02;
+
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.5;
+  lfoGainNode = ctx.createGain();
+  lfoGainNode.gain.value = wowAmt * 0.006;
+  lfo.connect(lfoGainNode);
+  lfoGainNode.connect(delayNode.delayTime);
+  lfo.start();
+
+  // Flutter (fast subtle pitch wobble, ~7 Hz)
+  const flutter = ctx.createOscillator();
+  flutter.frequency.value = 7;
+  flutterGainNode = ctx.createGain();
+  flutterGainNode.gain.value = wowAmt * 0.0012;
+  flutter.connect(flutterGainNode);
+  flutterGainNode.connect(delayNode.delayTime);
+  flutter.start();
+
+  // Low-pass (vinyl rolls off at ~15kHz)
+  const lowPass = ctx.createBiquadFilter();
+  lowPass.type = 'lowpass';
+  lowPass.frequency.value = 14500;
+  lowPass.Q.value = 0.4;
+
+  // Warmth: boost ~200 Hz
+  warmthFilterNode = ctx.createBiquadFilter();
+  warmthFilterNode.type = 'peaking';
+  warmthFilterNode.frequency.value = 220;
+  warmthFilterNode.Q.value = 0.8;
+  warmthFilterNode.gain.value = warmth * 5;
+
+  // High shelf cut for warmth
+  highShelfNode = ctx.createBiquadFilter();
+  highShelfNode.type = 'highshelf';
+  highShelfNode.frequency.value = 6000;
+  highShelfNode.gain.value = -(warmth * 3);
+
+  // Harmonic saturation
+  waveShaper = ctx.createWaveShaper();
+  waveShaper.curve = makeCurve(warmth * 30 + 1);
+  waveShaper.oversample = '4x';
+
+  // Analyser for VU
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.6;
+
+  // Connect main chain
+  sourceNode.connect(delayNode);
+  delayNode.connect(lowPass);
+  lowPass.connect(warmthFilterNode);
+  warmthFilterNode.connect(highShelfNode);
+  highShelfNode.connect(waveShaper);
+  waveShaper.connect(analyser);
+  analyser.connect(ctx.destination);
+
+  // --- Surface noise ---
+  const noiseBuf = createNoiseBuffer(ctx, 8);
+  noiseNode = ctx.createBufferSource();
+  noiseNode.buffer = noiseBuf;
+  noiseNode.loop = true;
+
+  const noiseLpf = ctx.createBiquadFilter();
+  noiseLpf.type = 'lowpass';
+  noiseLpf.frequency.value = 4000;
+
+  noiseGainNode = ctx.createGain();
+  noiseGainNode.gain.value = noiseAmt * 0.04;
+
+  noiseNode.connect(noiseLpf);
+  noiseLpf.connect(noiseGainNode);
+  noiseGainNode.connect(ctx.destination);
+
+  // --- Crackle / pops ---
+  const crackBuf = createCrackleBuffer(ctx, 10);
+  crackleNode = ctx.createBufferSource();
+  crackleNode.buffer = crackBuf;
+  crackleNode.loop = true;
+
+  const crackBpf = ctx.createBiquadFilter();
+  crackBpf.type = 'bandpass';
+  crackBpf.frequency.value = 2200;
+  crackBpf.Q.value = 0.5;
+
+  crackleGainNode = ctx.createGain();
+  crackleGainNode.gain.value = crackleAmt * 0.25;
+
+  crackleNode.connect(crackBpf);
+  crackBpf.connect(crackleGainNode);
+  crackleGainNode.connect(ctx.destination);
+
+  // Start noise always
+  noiseNode.start();
+  crackleNode.start();
+
+  // Source done handler
+  sourceNode.onended = () => {
+    if (isPlaying) stopPlayback();
+  };
+}
+
+// ─── Load audio file ──────────────────────────────────────
+async function loadFile(file) {
+  setStatus('Loading…', false);
+  trackName.textContent = file.name;
+  playBtn.disabled = true;
+
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ab = await file.arrayBuffer();
+    audioBuffer = await audioCtx.decodeAudioData(ab);
+    playBtn.disabled = false;
+    const dur = formatTime(audioBuffer.duration);
+    trackTime.textContent = `00:00 / ${dur}`;
+    setStatus('Ready', false);
+  } catch(e) {
+    setStatus('Error loading file', false);
+    console.error(e);
+  }
+}
+
+// ─── Playback controls ────────────────────────────────────
+function startPlayback() {
+  if (!audioBuffer) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  buildGraph();
+  startedAt = audioCtx.currentTime - pausedAt;
+  sourceNode.start(0, pausedAt);
+  isPlaying = true;
+
+  platter.classList.add('spinning');
+  armLine.classList.add('playing');
+  playBtn.textContent = '⏸';
+  setStatus('Playing', true);
+
+  startVU();
+  startClock();
+}
+
+function pausePlayback() {
+  if (!sourceNode) return;
+  pausedAt = audioCtx.currentTime - startedAt;
+  sourceNode.onended = null;
+  sourceNode.stop();
+  if (noiseNode) noiseNode.stop();
+  if (crackleNode) crackleNode.stop();
+  isPlaying = false;
+  platter.classList.remove('spinning');
+  armLine.classList.remove('playing');
+  playBtn.textContent = '▶';
+  setStatus('Paused', false);
+  cancelAnimationFrame(vuFrame);
+  cancelAnimationFrame(animFrame);
+  vuBars.forEach(b => b.style.height = '0%');
+}
+
+function stopPlayback() {
+  pausedAt = 0;
+  isPlaying = false;
+  platter.classList.remove('spinning');
+  armLine.classList.remove('playing');
+  playBtn.textContent = '▶';
+  setStatus('Finished', false);
+  cancelAnimationFrame(vuFrame);
+  cancelAnimationFrame(animFrame);
+  progressFill.style.width = '0%';
+  trackTime.textContent = `00:00 / ${formatTime(audioBuffer.duration)}`;
+  vuBars.forEach(b => b.style.height = '0%');
+}
+
+playBtn.addEventListener('click', () => {
+  if (!audioBuffer) return;
+  if (isPlaying) {
+    pausePlayback();
+  } else {
+    startPlayback();
+  }
+});
+
+// ─── VU meter ─────────────────────────────────────────────
+function startVU() {
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  function tick() {
+    analyser.getByteFrequencyData(data);
+    // Use 5 different frequency bands
+    const bands = [
+      avg(data, 0, 4), avg(data, 4, 10),
+      avg(data, 10, 20), avg(data, 20, 40), avg(data, 40, 80)
+    ];
+    vuBars.forEach((bar, i) => {
+      bar.style.height = (bands[i] / 255 * 100).toFixed(1) + '%';
+    });
+    vuFrame = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+function avg(data, lo, hi) {
+  let s = 0;
+  for (let i = lo; i < hi && i < data.length; i++) s += data[i];
+  return s / (hi - lo);
+}
+
+// ─── Clock / progress ─────────────────────────────────────
+function startClock() {
+  function tick() {
+    if (!isPlaying) return;
+    const elapsed = audioCtx.currentTime - startedAt;
+    const dur = audioBuffer.duration;
+    trackTime.textContent = `${formatTime(elapsed)} / ${formatTime(dur)}`;
+    progressFill.style.width = Math.min(elapsed / dur * 100, 100).toFixed(2) + '%';
+    animFrame = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+}
+
+// ─── Status ───────────────────────────────────────────────
+function setStatus(msg, active) {
+  statusText.textContent = msg;
+  statusDot.className = 'status-dot' + (active ? ' active' : '');
+}
+
+// ─── File input / drag-drop ───────────────────────────────
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) {
+    if (isPlaying) pausePlayback();
+    pausedAt = 0;
+    loadFile(e.target.files[0]);
+  }
+});
+
+// ─── Seek on progress bar click ──────────────────────────
+progressWrap.addEventListener('click', e => {
+  if (!audioBuffer) return;
+  const rect = progressWrap.getBoundingClientRect();
+  const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const seekTime = fraction * audioBuffer.duration;
+
+  if (isPlaying) {
+    sourceNode.onended = null;
+    sourceNode.stop();
+    if (noiseNode) noiseNode.stop();
+    if (crackleNode) crackleNode.stop();
+    pausedAt = seekTime;
+    startPlayback();
+  } else {
+    pausedAt = seekTime;
+    progressFill.style.width = (fraction * 100).toFixed(2) + '%';
+    trackTime.textContent = `${formatTime(seekTime)} / ${formatTime(audioBuffer.duration)}`;
+  }
+});
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    if (isPlaying) pausePlayback();
+    pausedAt = 0;
+    loadFile(file);
+  }
+});
+</script>
+</body>
+</html>
