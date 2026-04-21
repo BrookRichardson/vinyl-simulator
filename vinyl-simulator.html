@@ -442,6 +442,25 @@
     width: 0%;
     transition: width 0.5s linear;
   }
+
+  .section-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0 16px;
+    color: var(--dim);
+    font-size: 0.55rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+  }
+
+  .section-divider::before,
+  .section-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--ridge);
+  }
 </style>
 </head>
 <body>
@@ -499,6 +518,35 @@
     </div>
   </div>
 
+  <div class="section-divider"><span>Character &amp; Noise</span></div>
+
+  <div class="controls">
+    <div class="knob-group">
+      <div class="knob-label">Vinyl Age <span class="val" id="ageVal">0%</span></div>
+      <input type="range" id="age" min="0" max="100" value="0">
+    </div>
+    <div class="knob-group">
+      <div class="knob-label">Stylus Resonance <span class="val" id="resonanceVal">25%</span></div>
+      <input type="range" id="resonance" min="0" max="100" value="25">
+    </div>
+    <div class="knob-group">
+      <div class="knob-label">Worn Stylus <span class="val" id="wornVal">0%</span></div>
+      <input type="range" id="worn" min="0" max="100" value="0">
+    </div>
+    <div class="knob-group">
+      <div class="knob-label">Turntable Rumble <span class="val" id="rumbleVal">20%</span></div>
+      <input type="range" id="rumble" min="0" max="100" value="20">
+    </div>
+    <div class="knob-group">
+      <div class="knob-label">Ghost Echo <span class="val" id="ghostVal">15%</span></div>
+      <input type="range" id="ghost" min="0" max="100" value="15">
+    </div>
+    <div class="knob-group">
+      <div class="knob-label">RIAA Mismatch <span class="val" id="riaaVal">50%</span></div>
+      <input type="range" id="riaa" min="0" max="100" value="50">
+    </div>
+  </div>
+
   <!-- Playback bar -->
   <div class="playback">
     <button class="play-btn" id="playBtn" disabled>▶</button>
@@ -550,6 +598,14 @@ let highShelfNode = null;
 let lfoGainNode = null;
 let flutterGainNode = null;
 let waveShaper = null;
+let agingLpfNode = null;
+let rumbleNode = null;
+let rumbleGainNode = null;
+let ghostGainNode = null;
+let stylusResNode = null;
+let wornShelfNode = null;
+let riaaMismatchLowNode = null;
+let riaaMismatchHighNode = null;
 
 // ─── UI Refs ──────────────────────────────────────────────
 const dropzone   = document.getElementById('dropzone');
@@ -566,10 +622,16 @@ const progressWrap = document.getElementById('progressWrap');
 const vuBars     = [1,2,3,4,5].map(i => document.getElementById('vu'+i));
 
 const sliders = {
-  warmth:  document.getElementById('warmth'),
-  noise:   document.getElementById('noise'),
-  wow:     document.getElementById('wow'),
-  crackle: document.getElementById('crackle'),
+  warmth:    document.getElementById('warmth'),
+  noise:     document.getElementById('noise'),
+  wow:       document.getElementById('wow'),
+  crackle:   document.getElementById('crackle'),
+  age:       document.getElementById('age'),
+  resonance: document.getElementById('resonance'),
+  worn:      document.getElementById('worn'),
+  rumble:    document.getElementById('rumble'),
+  ghost:     document.getElementById('ghost'),
+  riaa:      document.getElementById('riaa'),
 };
 
 // ─── Slider UI update ─────────────────────────────────────
@@ -601,6 +663,16 @@ function applyLiveKnob(key, v) {
   if (key === 'wow') {
     if (lfoGainNode)     lfoGainNode.gain.value     = v * 0.006;
     if (flutterGainNode) flutterGainNode.gain.value = v * 0.0012;
+  }
+  if (key === 'age'       && agingLpfNode)        agingLpfNode.frequency.value   = 14500 - v * 6500;
+  if (key === 'resonance' && stylusResNode)        stylusResNode.gain.value       = v * 6;
+  if (key === 'worn'      && wornShelfNode)        wornShelfNode.gain.value       = -(v * 8);
+  if (key === 'rumble'    && rumbleGainNode)       rumbleGainNode.gain.value      = v * 0.4;
+  if (key === 'ghost'     && ghostGainNode)        ghostGainNode.gain.value       = v * 0.025;
+  if (key === 'riaa') {
+    const m = (v - 0.5) * 2;
+    if (riaaMismatchLowNode)  riaaMismatchLowNode.gain.value  = -m * 3;
+    if (riaaMismatchHighNode) riaaMismatchHighNode.gain.value =  m * 4;
   }
 }
 
@@ -662,10 +734,16 @@ function createCrackleBuffer(ctx, seconds) {
 // ─── Build Audio Graph ────────────────────────────────────
 function buildGraph() {
   const ctx = audioCtx;
-  const warmth = parseInt(sliders.warmth.value) / 100;
-  const noiseAmt = parseInt(sliders.noise.value) / 100;
-  const wowAmt = parseInt(sliders.wow.value) / 100;
-  const crackleAmt = parseInt(sliders.crackle.value) / 100;
+  const warmth     = parseInt(sliders.warmth.value)     / 100;
+  const noiseAmt   = parseInt(sliders.noise.value)      / 100;
+  const wowAmt     = parseInt(sliders.wow.value)        / 100;
+  const crackleAmt = parseInt(sliders.crackle.value)    / 100;
+  const ageAmt     = parseInt(sliders.age.value)        / 100;
+  const resAmt     = parseInt(sliders.resonance.value)  / 100;
+  const wornAmt    = parseInt(sliders.worn.value)       / 100;
+  const rumbleAmt  = parseInt(sliders.rumble.value)     / 100;
+  const ghostAmt   = parseInt(sliders.ghost.value)      / 100;
+  const riaaMix    = (parseInt(sliders.riaa.value) - 50) / 50; // -1 warm … +1 bright
 
   // --- Main source ---
   sourceNode = ctx.createBufferSource();
@@ -698,6 +776,12 @@ function buildGraph() {
   lowPass.frequency.value = 14500;
   lowPass.Q.value = 0.4;
 
+  // Vinyl Age: progressive HF softening (14.5kHz → 8kHz at max)
+  agingLpfNode = ctx.createBiquadFilter();
+  agingLpfNode.type = 'lowpass';
+  agingLpfNode.frequency.value = 14500 - ageAmt * 6500;
+  agingLpfNode.Q.value = 0.5;
+
   // Warmth: boost ~200 Hz
   warmthFilterNode = ctx.createBiquadFilter();
   warmthFilterNode.type = 'peaking';
@@ -711,10 +795,34 @@ function buildGraph() {
   highShelfNode.frequency.value = 6000;
   highShelfNode.gain.value = -(warmth * 3);
 
+  // RIAA Mismatch: 0–49 = warm/lush (bass lift, treble dip), 51–100 = bright/punchy
+  riaaMismatchLowNode = ctx.createBiquadFilter();
+  riaaMismatchLowNode.type = 'lowshelf';
+  riaaMismatchLowNode.frequency.value = 200;
+  riaaMismatchLowNode.gain.value = -riaaMix * 3;
+
+  riaaMismatchHighNode = ctx.createBiquadFilter();
+  riaaMismatchHighNode.type = 'highshelf';
+  riaaMismatchHighNode.frequency.value = 3000;
+  riaaMismatchHighNode.gain.value = riaaMix * 4;
+
   // Harmonic saturation
   waveShaper = ctx.createWaveShaper();
   waveShaper.curve = makeCurve(warmth * 30 + 1);
   waveShaper.oversample = '4x';
+
+  // Stylus Resonance: cartridge HF peak ~10kHz
+  stylusResNode = ctx.createBiquadFilter();
+  stylusResNode.type = 'peaking';
+  stylusResNode.frequency.value = 10000;
+  stylusResNode.Q.value = 2.5;
+  stylusResNode.gain.value = resAmt * 6;
+
+  // Worn Stylus: dulled highs above 8kHz
+  wornShelfNode = ctx.createBiquadFilter();
+  wornShelfNode.type = 'highshelf';
+  wornShelfNode.frequency.value = 8000;
+  wornShelfNode.gain.value = -(wornAmt * 8);
 
   // Analyser for VU
   analyser = ctx.createAnalyser();
@@ -724,11 +832,25 @@ function buildGraph() {
   // Connect main chain
   sourceNode.connect(delayNode);
   delayNode.connect(lowPass);
-  lowPass.connect(warmthFilterNode);
+  lowPass.connect(agingLpfNode);
+  agingLpfNode.connect(warmthFilterNode);
   warmthFilterNode.connect(highShelfNode);
-  highShelfNode.connect(waveShaper);
-  waveShaper.connect(analyser);
+  highShelfNode.connect(riaaMismatchLowNode);
+  riaaMismatchLowNode.connect(riaaMismatchHighNode);
+  riaaMismatchHighNode.connect(waveShaper);
+  waveShaper.connect(stylusResNode);
+  stylusResNode.connect(wornShelfNode);
+  wornShelfNode.connect(analyser);
   analyser.connect(ctx.destination);
+
+  // --- Ghost Echo (adjacent groove bleed, one revolution ≈ 1.8s at 33⅓ RPM) ---
+  const ghostDelay = ctx.createDelay(2.0);
+  ghostDelay.delayTime.value = 60 / 33.33;
+  ghostGainNode = ctx.createGain();
+  ghostGainNode.gain.value = ghostAmt * 0.025;
+  waveShaper.connect(ghostDelay);
+  ghostDelay.connect(ghostGainNode);
+  ghostGainNode.connect(ctx.destination);
 
   // --- Surface noise ---
   const noiseBuf = createNoiseBuffer(ctx, 8);
@@ -765,9 +887,28 @@ function buildGraph() {
   crackBpf.connect(crackleGainNode);
   crackleGainNode.connect(ctx.destination);
 
-  // Start noise always
+  // --- Turntable Rumble (motor/bearing sub-bass, ~30 Hz) ---
+  const rumbleBuf = createNoiseBuffer(ctx, 6);
+  rumbleNode = ctx.createBufferSource();
+  rumbleNode.buffer = rumbleBuf;
+  rumbleNode.loop = true;
+
+  const rumbleBpf = ctx.createBiquadFilter();
+  rumbleBpf.type = 'bandpass';
+  rumbleBpf.frequency.value = 30;
+  rumbleBpf.Q.value = 1.5;
+
+  rumbleGainNode = ctx.createGain();
+  rumbleGainNode.gain.value = rumbleAmt * 0.4;
+
+  rumbleNode.connect(rumbleBpf);
+  rumbleBpf.connect(rumbleGainNode);
+  rumbleGainNode.connect(ctx.destination);
+
+  // Start all noise sources
   noiseNode.start();
   crackleNode.start();
+  rumbleNode.start();
 
   // Source done handler
   sourceNode.onended = () => {
@@ -821,6 +962,7 @@ function pausePlayback() {
   sourceNode.stop();
   if (noiseNode) noiseNode.stop();
   if (crackleNode) crackleNode.stop();
+  if (rumbleNode) rumbleNode.stop();
   isPlaying = false;
   platter.classList.remove('spinning');
   armLine.classList.remove('playing');
