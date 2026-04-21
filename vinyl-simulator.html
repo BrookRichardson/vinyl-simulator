@@ -272,15 +272,116 @@
     text-transform: uppercase;
     color: var(--dim);
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
   }
 
   .knob-label .val {
     color: var(--amber);
     font-size: 0.65rem;
     font-weight: 500;
+    margin-left: auto;
   }
+
+  .info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 1px solid var(--ridge);
+    background: transparent;
+    color: var(--dim);
+    font-size: 0.5rem;
+    font-family: 'IBM Plex Mono', monospace;
+    cursor: pointer;
+    margin-left: 5px;
+    flex-shrink: 0;
+    transition: border-color 0.15s, color 0.15s;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .info-btn:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  /* === INFO MODAL === */
+  .info-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .info-modal.open { display: flex; }
+
+  .info-modal-box {
+    background: var(--panel);
+    border: 1px solid var(--ridge);
+    border-radius: 4px;
+    max-width: 420px;
+    width: 100%;
+    padding: 28px;
+    position: relative;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.8);
+  }
+
+  .info-modal-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--amber), transparent);
+    opacity: 0.4;
+  }
+
+  .info-modal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    color: var(--gold);
+    margin-bottom: 20px;
+    padding-right: 20px;
+  }
+
+  .info-section { margin-bottom: 14px; }
+  .info-section:last-child { margin-bottom: 0; }
+
+  .info-section-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 5px;
+  }
+
+  .info-section-text {
+    font-size: 0.68rem;
+    line-height: 1.65;
+    color: var(--cream);
+    opacity: 0.85;
+  }
+
+  .info-modal-close {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    background: transparent;
+    border: none;
+    color: var(--dim);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+
+  .info-modal-close:hover { color: var(--cream); }
 
   input[type=range] {
     -webkit-appearance: none;
@@ -558,19 +659,19 @@
   <!-- Controls -->
   <div class="controls">
     <div class="knob-group">
-      <div class="knob-label">Warmth <span class="val" id="warmthVal">50%</span></div>
+      <div class="knob-label">Warmth <button class="info-btn" data-effect="warmth">?</button><span class="val" id="warmthVal">50%</span></div>
       <input type="range" id="warmth" min="0" max="100" value="50">
     </div>
     <div class="knob-group">
-      <div class="knob-label">Surface Noise <span class="val" id="noiseVal">40%</span></div>
+      <div class="knob-label">Surface Noise <button class="info-btn" data-effect="noise">?</button><span class="val" id="noiseVal">40%</span></div>
       <input type="range" id="noise" min="0" max="100" value="40">
     </div>
     <div class="knob-group">
-      <div class="knob-label">Wow &amp; Flutter <span class="val" id="wowVal">35%</span></div>
+      <div class="knob-label">Wow &amp; Flutter <button class="info-btn" data-effect="wow">?</button><span class="val" id="wowVal">35%</span></div>
       <input type="range" id="wow" min="0" max="100" value="35">
     </div>
     <div class="knob-group">
-      <div class="knob-label">Crackle <span class="val" id="crackleVal">30%</span></div>
+      <div class="knob-label">Crackle <button class="info-btn" data-effect="crackle">?</button><span class="val" id="crackleVal">30%</span></div>
       <input type="range" id="crackle" min="0" max="100" value="30">
     </div>
   </div>
@@ -579,27 +680,27 @@
 
   <div class="controls">
     <div class="knob-group">
-      <div class="knob-label">Vinyl Age <span class="val" id="ageVal">0%</span></div>
+      <div class="knob-label">Vinyl Age <button class="info-btn" data-effect="age">?</button><span class="val" id="ageVal">0%</span></div>
       <input type="range" id="age" min="0" max="100" value="0">
     </div>
     <div class="knob-group">
-      <div class="knob-label">Stylus Resonance <span class="val" id="resonanceVal">25%</span></div>
+      <div class="knob-label">Stylus Resonance <button class="info-btn" data-effect="resonance">?</button><span class="val" id="resonanceVal">25%</span></div>
       <input type="range" id="resonance" min="0" max="100" value="25">
     </div>
     <div class="knob-group">
-      <div class="knob-label">Worn Stylus <span class="val" id="wornVal">0%</span></div>
+      <div class="knob-label">Worn Stylus <button class="info-btn" data-effect="worn">?</button><span class="val" id="wornVal">0%</span></div>
       <input type="range" id="worn" min="0" max="100" value="0">
     </div>
     <div class="knob-group">
-      <div class="knob-label">Turntable Rumble <span class="val" id="rumbleVal">20%</span></div>
+      <div class="knob-label">Turntable Rumble <button class="info-btn" data-effect="rumble">?</button><span class="val" id="rumbleVal">20%</span></div>
       <input type="range" id="rumble" min="0" max="100" value="20">
     </div>
     <div class="knob-group">
-      <div class="knob-label">Ghost Echo <span class="val" id="ghostVal">15%</span></div>
+      <div class="knob-label">Ghost Echo <button class="info-btn" data-effect="ghost">?</button><span class="val" id="ghostVal">15%</span></div>
       <input type="range" id="ghost" min="0" max="100" value="15">
     </div>
     <div class="knob-group">
-      <div class="knob-label">RIAA Mismatch <span class="val" id="riaaVal">50%</span></div>
+      <div class="knob-label">RIAA Mismatch <button class="info-btn" data-effect="riaa">?</button><span class="val" id="riaaVal">50%</span></div>
       <input type="range" id="riaa" min="0" max="100" value="50">
     </div>
   </div>
@@ -630,6 +731,25 @@
     </div>
   </div>
 
+</div>
+
+<div class="info-modal" id="infoModal">
+  <div class="info-modal-box">
+    <button class="info-modal-close" id="infoClose">×</button>
+    <div class="info-modal-title" id="infoTitle"></div>
+    <div class="info-section">
+      <div class="info-section-label">What it does</div>
+      <div class="info-section-text" id="infoWhat"></div>
+    </div>
+    <div class="info-section">
+      <div class="info-section-label">Why vinyl players have this</div>
+      <div class="info-section-text" id="infoWhy"></div>
+    </div>
+    <div class="info-section">
+      <div class="info-section-label">How to hear it</div>
+      <div class="info-section-text" id="infoHow"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1170,6 +1290,87 @@ progressWrap.addEventListener('click', e => {
     progressFill.style.width = (fraction * 100).toFixed(2) + '%';
     trackTime.textContent = `${formatTime(seekTime)} / ${formatTime(audioBuffer.duration)}`;
   }
+});
+
+// ─── Effect info modal ───────────────────────────────────
+const EFFECT_INFO = {
+  warmth: {
+    title: 'Warmth',
+    what: 'Boosts the low-mids around 220 Hz with a peaking filter, rolls off the high shelf above 6 kHz, and adds harmonic saturation through a soft-clip waveshaper.',
+    why: 'Vinyl\'s analogue signal chain — the cutting lathe, the lacquer medium, and the phono preamp — naturally colour the sound. The result is a rounded, slightly saturated midrange with a softened top end that digital recordings do not have.',
+    how: 'Use a bright or clinical-sounding recording. Play it at 0%, then bring Warmth to 70%. The sound becomes progressively rounder and fuller, with a slight grit on loud peaks.'
+  },
+  noise: {
+    title: 'Surface Noise',
+    what: 'A looping pink noise buffer shaped through a 4 kHz lowpass filter, mixed beneath the audio at a low level.',
+    why: 'The groove wall is never perfectly smooth. Dust, pressing imperfections, and general wear create a continuous low-level hiss beneath the music on all vinyl records — even pristine ones.',
+    how: 'Listen in a quiet passage or in the gap before the music starts. Raise the slider slowly from 0% — a soft, tape-like hiss will emerge. At high values it becomes a clearly audible noise floor.'
+  },
+  wow: {
+    title: 'Wow & Flutter',
+    what: 'Two oscillators modulate a shared delay node: one at 0.5 Hz producing slow pitch drift (wow), and one at 7 Hz producing fast mechanical wobble (flutter).',
+    why: 'No turntable runs at a perfectly constant speed. Wow comes from slow platter speed variation caused by a stretched belt or uneven motor torque. Flutter comes from faster mechanical irregularities in the bearing or the stylus vibrating along the groove.',
+    how: 'Play a sustained held note — a piano chord, a long vocal, or a synth pad. At 0% the pitch is perfectly stable. Raise the slider and the note begins to gently waver. On percussive music the effect is much harder to notice.'
+  },
+  crackle: {
+    title: 'Crackle',
+    what: 'Sparse exponential-decay impulses baked into a looping buffer, then filtered through a 2.2 kHz bandpass to give each pop a natural tonal shape.',
+    why: 'Dust particles, fingerprints, and microscopic scratches on the groove wall cause the stylus to skip or vibrate unexpectedly, creating the characteristic ticks and pops of a well-used record.',
+    how: 'Best heard in quiet passages. Set Crackle to 60% and listen during a soft section — irregular pops will appear randomly in the background. Because the buffer is randomised each session, it never repeats.'
+  },
+  age: {
+    title: 'Vinyl Age',
+    what: 'A second lowpass filter that progressively rolls off the high-frequency ceiling — from 14.5 kHz at 0% down to 8 kHz at 100%.',
+    why: 'Every play grinds the stylus along the groove wall, slowly eroding the fine groove detail that carries high-frequency information. Over hundreds of plays a record loses its air and top-end clarity.',
+    how: 'Play a track with prominent hi-hats or cymbals. At 0% the top end is crisp. Drag the slider toward 100% and the hi-hats gradually become dull and muffled, as if the record has been played hundreds of times.'
+  },
+  resonance: {
+    title: 'Stylus Resonance',
+    what: 'A peaking filter centred at 10 kHz with a Q of 2.5, boosting by up to +6 dB.',
+    why: 'Every moving-magnet cartridge has a natural resonant frequency where the stylus mass and cantilever compliance interact. This creates a slight peak in the upper presence region — a characteristic brightness and "zing" that is part of the analogue sound.',
+    how: 'Play a track with clear high-frequency content — cymbals, sibilant vocals, or acoustic guitar. At 0% the top end is flat. Raise the slider and an airy brightness builds around 10 kHz, adding shimmer and presence.'
+  },
+  worn: {
+    title: 'Worn Stylus',
+    what: 'A high-shelf cut above 8 kHz, attenuating by up to −8 dB.',
+    why: 'A diamond stylus wears down after hundreds of hours of use. The tip becomes rounded and can no longer trace fine groove detail at high frequencies, resulting in loss of HF resolution and dulled transients.',
+    how: 'Play something bright and crisp. At 0% the sound is clear and detailed. Raise Worn Stylus toward 100% — the hi-hats become veiled, vocals lose their air, and the mix sounds as if a thin cloth has been placed over the speakers.'
+  },
+  rumble: {
+    title: 'Turntable Rumble',
+    what: 'Pink noise fed through a bandpass filter centred at 55 Hz, adding a low-frequency drone beneath the audio.',
+    why: 'The motor that spins the platter vibrates at low frequencies. This vibration transfers through the chassis and tonearm into the stylus, adding a sub-bass presence to the signal. Even well-engineered turntables never fully eliminate this.',
+    how: 'Requires headphones or speakers capable of reproducing bass below 80 Hz — laptop speakers will not produce this effect. Raise the slider slowly and you will hear a low, continuous thudding emerge beneath the music.'
+  },
+  ghost: {
+    title: 'Ghost Echo',
+    what: 'A delayed copy of the processed signal mixed back in at low level, with a delay time of approximately 1.8 seconds — exactly one revolution of a 33⅓ RPM record.',
+    why: 'Very loud passages can physically deform the groove wall enough to bleed a faint impression into the adjacent groove — one revolution away. During playback you hear a ghost of the loud sound arriving just before the real moment.',
+    how: 'Find a track with a sudden loud entry — a snare hit, a vocal chorus, or a sharp guitar chord. Listen carefully in the 2 seconds before that moment. With Ghost Echo raised, you will hear a faint shadow of the loud sound arriving early.'
+  },
+  riaa: {
+    title: 'RIAA Mismatch',
+    what: 'A pair of shelf filters that tilt the tonal balance. Below 50%: bass shelf boost and treble cut (warm/lush). Above 50%: bass cut and treble boost (bright/punchy). At 50% there is no effect.',
+    why: 'Vinyl is recorded with a standard EQ curve that the phono preamp reverses during playback. Different mastering engineers across different eras used slightly different interpretations of this curve, so a small mismatch shifts the tonal balance of the playback.',
+    how: 'Play a track with a wide mix — bass, vocals, and hi-hats all present. Drag the slider slowly from 0% to 100%. At 0% the low end feels prominent and lush. At 100% the midrange becomes more forward and the bass recedes.'
+  }
+};
+
+const infoModal = document.getElementById('infoModal');
+document.getElementById('infoClose').addEventListener('click', () => infoModal.classList.remove('open'));
+infoModal.addEventListener('click', e => { if (e.target === infoModal) infoModal.classList.remove('open'); });
+
+document.querySelectorAll('.info-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const info = EFFECT_INFO[btn.dataset.effect];
+    if (!info) return;
+    document.getElementById('infoTitle').textContent = info.title;
+    document.getElementById('infoWhat').textContent  = info.what;
+    document.getElementById('infoWhy').textContent   = info.why;
+    document.getElementById('infoHow').textContent   = info.how;
+    infoModal.classList.add('open');
+  });
 });
 
 dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
