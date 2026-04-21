@@ -165,10 +165,11 @@
   /* Tonearm */
   .tonearm-wrap {
     position: absolute;
-    right: 30px;
+    left: calc(50% + 22px);
     top: 10px;
     width: 90px;
     height: 180px;
+    z-index: 1;
   }
 
   .tonearm {
@@ -188,7 +189,7 @@
     height: 130px;
     background: linear-gradient(180deg, #999, #666);
     transform-origin: top center;
-    transform: rotate(-22deg);
+    transform: rotate(15deg);
     border-radius: 2px;
   }
 
