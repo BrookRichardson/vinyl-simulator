@@ -2,11 +2,13 @@
 
 A browser-based vinyl record simulator built with the Web Audio API. Drop any audio file onto the player and apply real-time analogue processing to give it the character of a vinyl record.
 
+**[Try it live](https://brookrichardson.github.io/vinyl-simulator/)** — runs entirely in your browser, nothing to install.
+
 ---
 
 ## Getting Started
 
-1. Open `vinyl-simulator.html` in a modern browser (Chrome or Edge recommended)
+1. Open the [live page](https://brookrichardson.github.io/vinyl-simulator/), or clone the repo and open `index.html` in a modern browser (Chrome or Edge recommended)
 2. Drop an audio file onto the player, or click the upload zone to browse
 3. Press play — all effects are applied in real time
 4. Adjust sliders while audio is playing to hear changes immediately
