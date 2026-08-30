@@ -151,6 +151,13 @@
     letter-spacing: 0.1em;
     line-height: 1.4;
     text-align: center;
+    max-width: 48px;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
   }
 
   .spindle {
@@ -223,7 +230,6 @@
     text-align: center;
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
-    margin-bottom: 24px;
     background: rgba(0,0,0,0.2);
   }
 
@@ -259,7 +265,6 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px 24px;
-    margin-bottom: 24px;
   }
 
   .knob-group {
@@ -288,13 +293,14 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 13px;
-    height: 13px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
-    border: 1px solid var(--ridge);
-    background: transparent;
-    color: var(--dim);
-    font-size: 0.7rem;
+    border: 1px solid var(--amber);
+    background: rgba(200,134,42,0.12);
+    color: var(--gold);
+    font-size: 0.6rem;
+    font-weight: 500;
     font-family: 'IBM Plex Mono', monospace;
     cursor: pointer;
     margin-left: 5px;
@@ -305,8 +311,9 @@
   }
 
   .info-btn:hover {
-    border-color: var(--amber);
-    color: var(--amber);
+    border-color: var(--gold);
+    background: var(--gold);
+    color: var(--bg);
   }
 
   /* === INFO MODAL === */
@@ -432,6 +439,42 @@
     flex-shrink: 0;
   }
 
+  .play-icon {
+    position: relative;
+    display: block;
+    width: 16px;
+    height: 18px;
+  }
+
+  /* Play triangle — nudged right so it reads centred inside the circle */
+  .play-icon::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-40%, -50%);
+    border-left: 15px solid currentColor;
+    border-top: 9px solid transparent;
+    border-bottom: 9px solid transparent;
+  }
+
+  /* Pause bars */
+  .play-btn.playing .play-icon::before,
+  .play-btn.playing .play-icon::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: auto;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 16px;
+    border: 0;
+    border-radius: 1px;
+    background: currentColor;
+  }
+
+  .play-btn.playing .play-icon::before { left: 2px; }
+  .play-btn.playing .play-icon::after  { right: 2px; }
+
   .play-btn:hover:not(:disabled) {
     background: rgba(200,134,42,0.12);
     box-shadow: 0 0 16px rgba(200,134,42,0.3);
@@ -492,9 +535,7 @@
 
   /* Status */
   .status-bar {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid var(--ridge);
+    margin-top: 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -531,32 +572,69 @@
   .progress-wrap {
     flex: 1;
     margin: 0 12px;
-    height: 2px;
-    background: var(--ridge);
-    border-radius: 1px;
+    height: 16px;
     position: relative;
     cursor: pointer;
   }
 
+  .progress-wrap::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; top: 50%;
+    transform: translateY(-50%);
+    height: 3px;
+    background: var(--ridge);
+    border-radius: 2px;
+  }
+
   .progress-fill {
-    height: 100%;
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    height: 3px;
     background: var(--amber);
-    border-radius: 1px;
+    border-radius: 2px;
     width: 0%;
     transition: width 0.5s linear;
   }
 
   /* === PRESETS === */
-  .presets {
-    margin-bottom: 20px;
+  /* === SECTIONS ===
+     Each block of the faceplate carries a silkscreened legend: a note glyph,
+     the name, then an engraved groove running out to the panel edge. */
+  .panel + .panel {
+    padding-top: 26px;
   }
 
-  .preset-label {
-    font-size: 0.75rem;
-    letter-spacing: 0.2em;
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.28em;
     text-transform: uppercase;
-    color: var(--dim);
-    margin-bottom: 8px;
+    color: var(--amber);
+  }
+
+  .section-head::before {
+    content: '♪';
+    flex-shrink: 0;
+    font-size: 0.95rem;
+    line-height: 1;
+    letter-spacing: 0;
+    text-shadow: 0 0 8px rgba(200,134,42,0.45);
+  }
+
+  .section-head::after {
+    content: '';
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(180deg,
+      #0b0805 0 1px,
+      rgba(200,134,42,0.10) 1px 2px);
   }
 
   .preset-buttons {
@@ -590,24 +668,6 @@
     background: rgba(200,134,42,0.08);
   }
 
-  .section-divider {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 8px 0 16px;
-    color: var(--dim);
-    font-size: 0.75rem;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-  }
-
-  .section-divider::before,
-  .section-divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--ridge);
-  }
 </style>
 </head>
 <body>
@@ -623,7 +683,7 @@
   <div class="deck">
     <div class="platter" id="platter">
       <div class="record-label">
-        <span>ROUGH<br>TRADE<br>◆</span>
+        <span id="labelText">ROUGH<br>TRADE<br>◆</span>
       </div>
       <div class="spindle"></div>
     </div>
@@ -635,19 +695,22 @@
     </div>
   </div>
 
-  <!-- Upload -->
-  <div class="upload-zone" id="dropzone">
-    <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac">
-    <div class="upload-icon">♫</div>
-    <div class="upload-label">
-      Drop your audio file here
-      <strong>or click to browse · MP3, WAV, FLAC, AAC</strong>
+  <!-- Source -->
+  <section class="panel">
+    <h2 class="section-head">Source</h2>
+    <div class="upload-zone" id="dropzone">
+      <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac">
+      <div class="upload-icon">♫</div>
+      <div class="upload-label">
+        Drop your audio file here
+        <strong>or click to browse · MP3, WAV, FLAC, AAC</strong>
+      </div>
     </div>
-  </div>
+  </section>
 
   <!-- Presets -->
-  <div class="presets">
-    <div class="preset-label">Preset</div>
+  <section class="panel">
+    <h2 class="section-head">Preset</h2>
     <div class="preset-buttons">
       <button class="preset-btn" data-preset="digital">Digital</button>
       <button class="preset-btn" data-preset="audiophile">Audiophile</button>
@@ -656,82 +719,90 @@
       <button class="preset-btn" data-preset="worn-classic">Worn Classic</button>
       <button class="preset-btn" data-preset="lo-fi">Lo-Fi</button>
     </div>
-  </div>
+  </section>
 
-  <!-- Controls -->
-  <div class="controls">
-    <div class="knob-group">
-      <div class="knob-label">Warmth <button class="info-btn" data-effect="warmth">?</button><span class="val" id="warmthVal">50%</span></div>
-      <input type="range" id="warmth" min="0" max="100" value="50">
+  <!-- Main controls -->
+  <section class="panel">
+    <h2 class="section-head">Main Controls</h2>
+    <div class="controls">
+      <div class="knob-group">
+        <div class="knob-label">Warmth <button class="info-btn" data-effect="warmth">?</button><span class="val" id="warmthVal">50%</span></div>
+        <input type="range" id="warmth" min="0" max="100" value="50">
+      </div>
+      <div class="knob-group">
+        <div class="knob-label">Surface Noise <button class="info-btn" data-effect="noise">?</button><span class="val" id="noiseVal">40%</span></div>
+        <input type="range" id="noise" min="0" max="100" value="40">
+      </div>
+      <div class="knob-group">
+        <div class="knob-label">Wow &amp; Flutter <button class="info-btn" data-effect="wow">?</button><span class="val" id="wowVal">35%</span></div>
+        <input type="range" id="wow" min="0" max="100" value="35">
+      </div>
+      <div class="knob-group">
+        <div class="knob-label">Crackle <button class="info-btn" data-effect="crackle">?</button><span class="val" id="crackleVal">30%</span></div>
+        <input type="range" id="crackle" min="0" max="100" value="30">
+      </div>
     </div>
-    <div class="knob-group">
-      <div class="knob-label">Surface Noise <button class="info-btn" data-effect="noise">?</button><span class="val" id="noiseVal">40%</span></div>
-      <input type="range" id="noise" min="0" max="100" value="40">
-    </div>
-    <div class="knob-group">
-      <div class="knob-label">Wow &amp; Flutter <button class="info-btn" data-effect="wow">?</button><span class="val" id="wowVal">35%</span></div>
-      <input type="range" id="wow" min="0" max="100" value="35">
-    </div>
-    <div class="knob-group">
-      <div class="knob-label">Crackle <button class="info-btn" data-effect="crackle">?</button><span class="val" id="crackleVal">30%</span></div>
-      <input type="range" id="crackle" min="0" max="100" value="30">
-    </div>
-  </div>
+  </section>
 
-  <div class="section-divider"><span>Character &amp; Noise</span></div>
+  <!-- Character -->
+  <section class="panel">
+    <h2 class="section-head">Character &amp; Noise</h2>
+    <div class="controls">
+      <div class="knob-group">
+        <div class="knob-label">Vinyl Age <button class="info-btn" data-effect="age">?</button><span class="val" id="ageVal">0%</span></div>
+        <input type="range" id="age" min="0" max="100" value="0">
+      </div>
+      <div class="knob-group">
+        <div class="knob-label">Stylus Resonance <button class="info-btn" data-effect="resonance">?</button><span class="val" id="resonanceVal">25%</span></div>
+        <input type="range" id="resonance" min="0" max="100" value="25">
+      </div>
+      <div class="knob-group">
+        <div class="knob-label">Worn Stylus <button class="info-btn" data-effect="worn">?</button><span class="val" id="wornVal">0%</span></div>
+        <input type="range" id="worn" min="0" max="100" value="0">
+      </div>
+      <div class="knob-group">
+        <div class="knob-label">Turntable Rumble <button class="info-btn" data-effect="rumble">?</button><span class="val" id="rumbleVal">20%</span></div>
+        <input type="range" id="rumble" min="0" max="100" value="20">
+      </div>
+      <div class="knob-group">
+        <div class="knob-label">Ghost Echo <button class="info-btn" data-effect="ghost">?</button><span class="val" id="ghostVal">15%</span></div>
+        <input type="range" id="ghost" min="0" max="100" value="15">
+      </div>
+      <div class="knob-group">
+        <div class="knob-label">RIAA Mismatch <button class="info-btn" data-effect="riaa">?</button><span class="val" id="riaaVal">50%</span></div>
+        <input type="range" id="riaa" min="0" max="100" value="50">
+      </div>
+    </div>
+  </section>
 
-  <div class="controls">
-    <div class="knob-group">
-      <div class="knob-label">Vinyl Age <button class="info-btn" data-effect="age">?</button><span class="val" id="ageVal">0%</span></div>
-      <input type="range" id="age" min="0" max="100" value="0">
+  <!-- Playback -->
+  <section class="panel">
+    <h2 class="section-head">Playback</h2>
+    <div class="playback">
+      <button class="play-btn" id="playBtn" disabled aria-label="Play"><span class="play-icon"></span></button>
+      <div class="track-info">
+        <div class="track-name" id="trackName">No file loaded</div>
+        <div class="track-time" id="trackTime">--:-- / --:--</div>
+      </div>
+      <div class="vu">
+        <div class="vu-bar"><div class="vu-fill" id="vu1"></div></div>
+        <div class="vu-bar"><div class="vu-fill" id="vu2"></div></div>
+        <div class="vu-bar"><div class="vu-fill" id="vu3"></div></div>
+        <div class="vu-bar"><div class="vu-fill" id="vu4"></div></div>
+        <div class="vu-bar"><div class="vu-fill" id="vu5"></div></div>
+      </div>
     </div>
-    <div class="knob-group">
-      <div class="knob-label">Stylus Resonance <button class="info-btn" data-effect="resonance">?</button><span class="val" id="resonanceVal">25%</span></div>
-      <input type="range" id="resonance" min="0" max="100" value="25">
-    </div>
-    <div class="knob-group">
-      <div class="knob-label">Worn Stylus <button class="info-btn" data-effect="worn">?</button><span class="val" id="wornVal">0%</span></div>
-      <input type="range" id="worn" min="0" max="100" value="0">
-    </div>
-    <div class="knob-group">
-      <div class="knob-label">Turntable Rumble <button class="info-btn" data-effect="rumble">?</button><span class="val" id="rumbleVal">20%</span></div>
-      <input type="range" id="rumble" min="0" max="100" value="20">
-    </div>
-    <div class="knob-group">
-      <div class="knob-label">Ghost Echo <button class="info-btn" data-effect="ghost">?</button><span class="val" id="ghostVal">15%</span></div>
-      <input type="range" id="ghost" min="0" max="100" value="15">
-    </div>
-    <div class="knob-group">
-      <div class="knob-label">RIAA Mismatch <button class="info-btn" data-effect="riaa">?</button><span class="val" id="riaaVal">50%</span></div>
-      <input type="range" id="riaa" min="0" max="100" value="50">
-    </div>
-  </div>
 
-  <!-- Playback bar -->
-  <div class="playback">
-    <button class="play-btn" id="playBtn" disabled>▶</button>
-    <div class="track-info">
-      <div class="track-name" id="trackName">No file loaded</div>
-      <div class="track-time" id="trackTime">--:-- / --:--</div>
+    <div class="status-bar">
+      <div>
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">Standby</span>
+      </div>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
     </div>
-    <div class="vu">
-      <div class="vu-bar"><div class="vu-fill" id="vu1"></div></div>
-      <div class="vu-bar"><div class="vu-fill" id="vu2"></div></div>
-      <div class="vu-bar"><div class="vu-fill" id="vu3"></div></div>
-      <div class="vu-bar"><div class="vu-fill" id="vu4"></div></div>
-      <div class="vu-bar"><div class="vu-fill" id="vu5"></div></div>
-    </div>
-  </div>
-
-  <div class="status-bar">
-    <div>
-      <span class="status-dot" id="statusDot"></span>
-      <span class="status-text" id="statusText">Standby</span>
-    </div>
-    <div class="progress-wrap" id="progressWrap">
-      <div class="progress-fill" id="progressFill"></div>
-    </div>
-  </div>
+  </section>
 
 </div>
 
@@ -793,6 +864,7 @@ const playBtn    = document.getElementById('playBtn');
 const platter    = document.getElementById('platter');
 const armLine    = document.getElementById('armLine');
 const trackName  = document.getElementById('trackName');
+const labelText  = document.getElementById('labelText');
 const trackTime  = document.getElementById('trackTime');
 const statusDot  = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
@@ -1137,6 +1209,7 @@ function buildGraph() {
 async function loadFile(file) {
   setStatus('Loading…', false);
   trackName.textContent = file.name;
+  labelText.textContent = file.name.replace(/\.[^.]+$/, '');
   playBtn.disabled = true;
 
   try {
@@ -1165,7 +1238,8 @@ function startPlayback() {
 
   platter.classList.add('spinning');
   armLine.classList.add('playing');
-  playBtn.textContent = '⏸';
+  playBtn.classList.add('playing');
+  playBtn.setAttribute('aria-label', 'Pause');
   setStatus('Playing', true);
 
   startVU();
@@ -1183,7 +1257,8 @@ function pausePlayback() {
   isPlaying = false;
   platter.classList.remove('spinning');
   armLine.classList.remove('playing');
-  playBtn.textContent = '▶';
+  playBtn.classList.remove('playing');
+  playBtn.setAttribute('aria-label', 'Play');
   setStatus('Paused', false);
   cancelAnimationFrame(vuFrame);
   cancelAnimationFrame(animFrame);
@@ -1195,7 +1270,8 @@ function stopPlayback() {
   isPlaying = false;
   platter.classList.remove('spinning');
   armLine.classList.remove('playing');
-  playBtn.textContent = '▶';
+  playBtn.classList.remove('playing');
+  playBtn.setAttribute('aria-label', 'Play');
   setStatus('Finished', false);
   cancelAnimationFrame(vuFrame);
   cancelAnimationFrame(animFrame);
