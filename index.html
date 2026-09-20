@@ -1340,6 +1340,13 @@ async function loadFile(file) {
     const dur = formatTime(audioBuffer.duration);
     trackTime.textContent = `00:00 / ${dur}`;
     setStatus('Ready', false);
+
+    // Choosing a track is itself the gesture that unblocks audio, so drop the
+    // needle rather than making them press play as well. Decoding happens
+    // across an await, though, so a browser may still refuse to resume — in
+    // that case stay on Ready and let the play button do it.
+    if (audioCtx.state === 'suspended') await audioCtx.resume().catch(() => {});
+    if (audioCtx.state === 'running') startPlayback();
   } catch(e) {
     setStatus('Error loading file', false);
     console.error(e);
