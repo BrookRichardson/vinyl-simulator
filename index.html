@@ -1076,11 +1076,15 @@ function updateSlider(el) {
 
 // One place turns a knob: track fill, readout, audio. Used by the sliders
 // themselves and by the presets that move them.
+const readouts = Object.fromEntries(
+  Object.keys(sliders).map(key => [key, document.getElementById(key + 'Val')])
+);
+
 function setKnob(key, value) {
   const el = sliders[key];
   el.value = value;
   updateSlider(el);
-  document.getElementById(key + 'Val').textContent = value + '%';
+  readouts[key].textContent = value + '%';
   applyLiveKnob(key, value / 100);
 }
 
@@ -1151,13 +1155,61 @@ const PRESETS = {
 
 const DEFAULT_PRESET = 'well-played';
 
-function applyPreset(name) {
+// Recall, the way a desk with motorised faders does it. Each fader runs at
+// its own constant speed, so a long throw takes longer than a short one and
+// they arrive at different moments — that stagger is what reads as motors
+// rather than as a CSS transition. The audio follows the caps, so you hear
+// the sweep too.
+const FADER_FULL_THROW_MS = 460;   // 0 → 100
+const FADER_MIN_MS = 130;          // even a nudge takes a moment to settle
+let recallFrame = null;
+
+function recallPreset(p) {
+  if (recallFrame) cancelAnimationFrame(recallFrame);
+
+  const moves = Object.entries(p)
+    .map(([key, to]) => ({ key, from: parseInt(sliders[key].value), to }))
+    .filter(m => m.from !== m.to)
+    .map(m => ({
+      ...m,
+      duration: Math.max(FADER_MIN_MS,
+        Math.abs(m.to - m.from) / 100 * FADER_FULL_THROW_MS)
+    }));
+
+  if (!moves.length) return;
+
+  const started = performance.now();
+  recallFrame = requestAnimationFrame(function step(now) {
+    let moving = false;
+    for (const m of moves) {
+      const t = Math.min(1, (now - started) / m.duration);
+      // Motors accelerate away and brake into position.
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      setKnob(m.key, Math.round(m.from + (m.to - m.from) * eased));
+      if (t < 1) moving = true;
+    }
+    recallFrame = moving ? requestAnimationFrame(step) : null;
+  });
+}
+
+function applyPreset(name, animate = true) {
   const p = PRESETS[name];
   if (!p) return;
-  Object.entries(p).forEach(([key, value]) => setKnob(key, value));
+
+  // The button answers immediately; the faders take their time.
   document.querySelectorAll('.preset-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.preset === name);
   });
+
+  const reduceMotion = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (animate && !reduceMotion) {
+    recallPreset(p);
+  } else {
+    if (recallFrame) { cancelAnimationFrame(recallFrame); recallFrame = null; }
+    Object.entries(p).forEach(([key, value]) => setKnob(key, value));
+  }
 }
 
 // Clear active preset when any slider is moved manually
@@ -1173,7 +1225,7 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
 
 // The markup's slider values and readouts must match this preset — it is
 // applied at startup and overwrites them.
-applyPreset(DEFAULT_PRESET);
+applyPreset(DEFAULT_PRESET, false);
 
 // ─── Live knob changes ────────────────────────────────────
 function applyLiveKnob(key, v) {
