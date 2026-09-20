@@ -955,14 +955,19 @@ function updateSlider(el) {
   el.style.setProperty('--p', pct + '%');
 }
 
+// One place turns a knob: track fill, readout, audio. Used by the sliders
+// themselves and by the presets that move them.
+function setKnob(key, value) {
+  const el = sliders[key];
+  el.value = value;
+  updateSlider(el);
+  document.getElementById(key + 'Val').textContent = value + '%';
+  applyLiveKnob(key, value / 100);
+}
+
 Object.entries(sliders).forEach(([key, el]) => {
   updateSlider(el);
-  el.addEventListener('input', () => {
-    updateSlider(el);
-    const v = parseInt(el.value);
-    document.getElementById(key + 'Val').textContent = v + '%';
-    applyLiveKnob(key, v / 100);
-  });
+  el.addEventListener('input', () => setKnob(key, parseInt(el.value)));
 });
 
 // ─── Master volume ────────────────────────────────────────
@@ -1030,13 +1035,7 @@ const DEFAULT_PRESET = 'well-played';
 function applyPreset(name) {
   const p = PRESETS[name];
   if (!p) return;
-  Object.entries(p).forEach(([key, value]) => {
-    const el = sliders[key];
-    el.value = value;
-    updateSlider(el);
-    document.getElementById(key + 'Val').textContent = value + '%';
-    applyLiveKnob(key, value / 100);
-  });
+  Object.entries(p).forEach(([key, value]) => setKnob(key, value));
   document.querySelectorAll('.preset-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.preset === name);
   });
