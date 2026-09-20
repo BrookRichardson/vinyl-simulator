@@ -1138,6 +1138,27 @@ function createCrackleBuffer(ctx, seconds) {
   return buf;
 }
 
+// ─── Noise layer ──────────────────────────────────────────
+// Surface noise, crackle and rumble are the same shape: a looping buffer
+// through one filter into a level. Only the buffer and the filter differ.
+function addNoiseLayer(ctx, buffer, filter, dest) {
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.loop = true;
+
+  const bq = ctx.createBiquadFilter();
+  bq.type = filter.type;
+  bq.frequency.value = filter.frequency;
+  if (filter.Q !== undefined) bq.Q.value = filter.Q;
+
+  const gain = ctx.createGain();
+
+  src.connect(bq);
+  bq.connect(gain);
+  gain.connect(dest);
+  return { src, gain };
+}
+
 // ─── Build Audio Graph ────────────────────────────────────
 function buildGraph() {
   const ctx = audioCtx;
@@ -1239,55 +1260,20 @@ function buildGraph() {
   ghostDelay.connect(ghostGainNode);
   ghostGainNode.connect(master);
 
-  // --- Surface noise ---
-  const noiseBuf = createNoiseBuffer(ctx, 8);
-  noiseNode = ctx.createBufferSource();
-  noiseNode.buffer = noiseBuf;
-  noiseNode.loop = true;
+  // --- Noise layers ---
+  // Surface noise: pink noise under a 4 kHz lowpass.
+  const surface = addNoiseLayer(ctx, createNoiseBuffer(ctx, 8),
+    { type: 'lowpass', frequency: 4000 }, master);
+  // Crackle / pops: sparse impulses shaped by a 2.2 kHz bandpass.
+  const crackle = addNoiseLayer(ctx, createCrackleBuffer(ctx, 10),
+    { type: 'bandpass', frequency: 2200, Q: 0.5 }, master);
+  // Turntable rumble: motor/bearing sub-bass.
+  const rumble = addNoiseLayer(ctx, createNoiseBuffer(ctx, 6),
+    { type: 'bandpass', frequency: 55, Q: 0.8 }, master);
 
-  const noiseLpf = ctx.createBiquadFilter();
-  noiseLpf.type = 'lowpass';
-  noiseLpf.frequency.value = 4000;
-
-  noiseGainNode = ctx.createGain();
-
-  noiseNode.connect(noiseLpf);
-  noiseLpf.connect(noiseGainNode);
-  noiseGainNode.connect(master);
-
-  // --- Crackle / pops ---
-  const crackBuf = createCrackleBuffer(ctx, 10);
-  crackleNode = ctx.createBufferSource();
-  crackleNode.buffer = crackBuf;
-  crackleNode.loop = true;
-
-  const crackBpf = ctx.createBiquadFilter();
-  crackBpf.type = 'bandpass';
-  crackBpf.frequency.value = 2200;
-  crackBpf.Q.value = 0.5;
-
-  crackleGainNode = ctx.createGain();
-
-  crackleNode.connect(crackBpf);
-  crackBpf.connect(crackleGainNode);
-  crackleGainNode.connect(master);
-
-  // --- Turntable Rumble (motor/bearing sub-bass, ~30 Hz) ---
-  const rumbleBuf = createNoiseBuffer(ctx, 6);
-  rumbleNode = ctx.createBufferSource();
-  rumbleNode.buffer = rumbleBuf;
-  rumbleNode.loop = true;
-
-  const rumbleBpf = ctx.createBiquadFilter();
-  rumbleBpf.type = 'bandpass';
-  rumbleBpf.frequency.value = 55;
-  rumbleBpf.Q.value = 0.8;
-
-  rumbleGainNode = ctx.createGain();
-
-  rumbleNode.connect(rumbleBpf);
-  rumbleBpf.connect(rumbleGainNode);
-  rumbleGainNode.connect(master);
+  noiseNode   = surface.src;  noiseGainNode   = surface.gain;
+  crackleNode = crackle.src;  crackleGainNode = crackle.gain;
+  rumbleNode  = rumble.src;   rumbleGainNode  = rumble.gain;
 
   // Topology is built; applyLiveKnob is the one place that knows what each
   // knob means, so let it supply every value rather than restating the
