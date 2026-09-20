@@ -534,6 +534,49 @@
     height: 0%;
   }
 
+  /* Master volume */
+  .volume-row {
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .volume-row .knob-label {
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .volume-row input[type=range] {
+    flex: 1;
+  }
+
+  .volume-row .val {
+    min-width: 3.2em;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .volume-row.muted .val { color: var(--dim); }
+
+  .mute-btn {
+    background: transparent;
+    border: none;
+    color: var(--dim);
+    cursor: pointer;
+    padding: 2px;
+    line-height: 1;
+    display: inline-flex;
+    transition: color 0.15s;
+  }
+
+  .mute-btn:hover { color: var(--cream); }
+  .volume-row.muted .mute-btn { color: var(--label); }
+
+  .mute-btn .mute-x { display: none; }
+  .volume-row.muted .waves { display: none; }
+  .volume-row.muted .mute-x { display: inline; }
+
   /* Status */
   .status-bar {
     margin-top: 18px;
@@ -794,6 +837,21 @@
       </div>
     </div>
 
+    <div class="volume-row" id="volumeRow">
+      <div class="knob-label">
+        <button class="mute-btn" id="muteBtn" aria-label="Mute" title="Mute">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
+            <path class="waves" d="M12.5 3.5a7 7 0 0 1 0 9M10.5 5.5a4 4 0 0 1 0 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path class="mute-x" d="M10.5 5.5l4 5M14.5 5.5l-4 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+        </button>
+        Volume
+      </div>
+      <input type="range" id="volume" min="0" max="100" value="80" aria-label="Master volume">
+      <span class="val" id="volumeVal">80%</span>
+    </div>
+
     <div class="status-bar">
       <div>
         <span class="status-dot" id="statusDot"></span>
@@ -857,6 +915,7 @@ let stylusResNode = null;
 let wornShelfNode = null;
 let riaaMismatchLowNode = null;
 let riaaMismatchHighNode = null;
+let masterGainNode = null;
 
 // ─── UI Refs ──────────────────────────────────────────────
 const dropzone   = document.getElementById('dropzone');
@@ -872,6 +931,10 @@ const statusText = document.getElementById('statusText');
 const progressFill = document.getElementById('progressFill');
 const progressWrap = document.getElementById('progressWrap');
 const vuBars     = [1,2,3,4,5].map(i => document.getElementById('vu'+i));
+const volumeEl   = document.getElementById('volume');
+const volumeVal  = document.getElementById('volumeVal');
+const volumeRow  = document.getElementById('volumeRow');
+const muteBtn    = document.getElementById('muteBtn');
 
 const sliders = {
   warmth:    document.getElementById('warmth'),
@@ -901,6 +964,56 @@ Object.entries(sliders).forEach(([key, el]) => {
     applyLiveKnob(key, v / 100);
   });
 });
+
+// ─── Master volume ────────────────────────────────────────
+// Volume is wired by hand rather than joining `sliders`: it has no PRESETS key
+// and no `applyLiveKnob` branch, its readout reads 'Muted' rather than a
+// percentage, and moving it must not clear the active preset the way the
+// effect knobs do.
+let isMuted = false;
+
+// Perceived loudness tracks roughly the square of amplitude, so square the
+// slider position to make the travel feel even. 100% is unity gain.
+function volumeToGain() {
+  if (isMuted) return 0;
+  const v = parseInt(volumeEl.value) / 100;
+  return v * v;
+}
+
+function applyVolume() {
+  if (!masterGainNode) return;
+  // Short ramp instead of a jump, so dragging the slider doesn't zipper.
+  const g = masterGainNode.gain;
+  const now = audioCtx.currentTime;
+  g.cancelScheduledValues(now);
+  g.setTargetAtTime(volumeToGain(), now, 0.015);
+}
+
+// The `muted` class on the row drives the readout colour, the button colour and
+// the speaker/✕ icon swap; CSS owns all three.
+function renderVolumeUI() {
+  const label = isMuted ? 'Unmute' : 'Mute';
+  updateSlider(volumeEl);
+  volumeVal.textContent = isMuted ? 'Muted' : volumeEl.value + '%';
+  volumeRow.classList.toggle('muted', isMuted);
+  muteBtn.setAttribute('aria-label', label);
+  muteBtn.title = label;
+}
+
+volumeEl.addEventListener('input', () => {
+  // Moving the slider off zero is an implicit unmute.
+  if (parseInt(volumeEl.value) > 0) isMuted = false;
+  renderVolumeUI();
+  applyVolume();
+});
+
+muteBtn.addEventListener('click', () => {
+  isMuted = !isMuted;
+  renderVolumeUI();
+  applyVolume();
+});
+
+renderVolumeUI();
 
 // ─── Presets ──────────────────────────────────────────────
 const PRESETS = {
@@ -1024,6 +1137,7 @@ function createCrackleBuffer(ctx, seconds) {
 // ─── Build Audio Graph ────────────────────────────────────
 function buildGraph() {
   const ctx = audioCtx;
+  const master = masterGainNode;
   const warmth     = parseInt(sliders.warmth.value)     / 100;
   const noiseAmt   = parseInt(sliders.noise.value)      / 100;
   const wowAmt     = parseInt(sliders.wow.value)        / 100;
@@ -1131,7 +1245,7 @@ function buildGraph() {
   waveShaper.connect(stylusResNode);
   stylusResNode.connect(wornShelfNode);
   wornShelfNode.connect(analyser);
-  analyser.connect(ctx.destination);
+  analyser.connect(master);
 
   // --- Ghost Echo (adjacent groove bleed, one revolution ≈ 1.8s at 33⅓ RPM) ---
   const ghostDelay = ctx.createDelay(2.0);
@@ -1140,7 +1254,7 @@ function buildGraph() {
   ghostGainNode.gain.value = ghostAmt * 0.2;
   waveShaper.connect(ghostDelay);
   ghostDelay.connect(ghostGainNode);
-  ghostGainNode.connect(ctx.destination);
+  ghostGainNode.connect(master);
 
   // --- Surface noise ---
   const noiseBuf = createNoiseBuffer(ctx, 8);
@@ -1157,7 +1271,7 @@ function buildGraph() {
 
   noiseNode.connect(noiseLpf);
   noiseLpf.connect(noiseGainNode);
-  noiseGainNode.connect(ctx.destination);
+  noiseGainNode.connect(master);
 
   // --- Crackle / pops ---
   const crackBuf = createCrackleBuffer(ctx, 10);
@@ -1175,7 +1289,7 @@ function buildGraph() {
 
   crackleNode.connect(crackBpf);
   crackBpf.connect(crackleGainNode);
-  crackleGainNode.connect(ctx.destination);
+  crackleGainNode.connect(master);
 
   // --- Turntable Rumble (motor/bearing sub-bass, ~30 Hz) ---
   const rumbleBuf = createNoiseBuffer(ctx, 6);
@@ -1193,7 +1307,7 @@ function buildGraph() {
 
   rumbleNode.connect(rumbleBpf);
   rumbleBpf.connect(rumbleGainNode);
-  rumbleGainNode.connect(ctx.destination);
+  rumbleGainNode.connect(master);
 
   // Start all noise sources
   noiseNode.start();
@@ -1214,7 +1328,12 @@ async function loadFile(file) {
   playBtn.disabled = true;
 
   try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGainNode = audioCtx.createGain();
+      masterGainNode.gain.value = volumeToGain();
+      masterGainNode.connect(audioCtx.destination);
+    }
     const ab = await file.arrayBuffer();
     audioBuffer = await audioCtx.decodeAudioData(ab);
     playBtn.disabled = false;
