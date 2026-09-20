@@ -837,16 +837,16 @@
     <h2 class="section-head">Character &amp; Noise</h2>
     <div class="controls">
       <div class="knob-group">
-        <div class="knob-label">Vinyl Age <button class="info-btn" data-effect="age">?</button><span class="val" id="ageVal">0%</span></div>
-        <input type="range" id="age" min="0" max="100" value="0">
+        <div class="knob-label">Vinyl Age <button class="info-btn" data-effect="age">?</button><span class="val" id="ageVal">20%</span></div>
+        <input type="range" id="age" min="0" max="100" value="20">
       </div>
       <div class="knob-group">
         <div class="knob-label">Stylus Resonance <button class="info-btn" data-effect="resonance">?</button><span class="val" id="resonanceVal">25%</span></div>
         <input type="range" id="resonance" min="0" max="100" value="25">
       </div>
       <div class="knob-group">
-        <div class="knob-label">Worn Stylus <button class="info-btn" data-effect="worn">?</button><span class="val" id="wornVal">0%</span></div>
-        <input type="range" id="worn" min="0" max="100" value="0">
+        <div class="knob-label">Worn Stylus <button class="info-btn" data-effect="worn">?</button><span class="val" id="wornVal">15%</span></div>
+        <input type="range" id="worn" min="0" max="100" value="15">
       </div>
       <div class="knob-group">
         <div class="knob-label">Turntable Rumble <button class="info-btn" data-effect="rumble">?</button><span class="val" id="rumbleVal">20%</span></div>
@@ -857,8 +857,8 @@
         <input type="range" id="ghost" min="0" max="100" value="15">
       </div>
       <div class="knob-group">
-        <div class="knob-label">RIAA Mismatch <button class="info-btn" data-effect="riaa">?</button><span class="val" id="riaaVal">50%</span></div>
-        <input type="range" id="riaa" min="0" max="100" value="50">
+        <div class="knob-label">RIAA Mismatch <button class="info-btn" data-effect="riaa">?</button><span class="val" id="riaaVal">45%</span></div>
+        <input type="range" id="riaa" min="0" max="100" value="45">
       </div>
     </div>
   </section>
@@ -1025,6 +1025,8 @@ const PRESETS = {
   'lo-fi':       { warmth: 90, noise: 85, wow: 75, crackle: 90, age: 55, resonance:  5, worn: 80, rumble: 65, ghost: 50, riaa: 25 },
 };
 
+const DEFAULT_PRESET = 'well-played';
+
 function applyPreset(name) {
   const p = PRESETS[name];
   if (!p) return;
@@ -1051,7 +1053,9 @@ document.querySelectorAll('.preset-btn').forEach(btn => {
   btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
 });
 
-applyPreset('well-played');
+// The markup's slider values and readouts must match this preset — it is
+// applied at startup and overwrites them.
+applyPreset(DEFAULT_PRESET);
 
 // ─── Live knob changes ────────────────────────────────────
 function applyLiveKnob(key, v) {
@@ -1138,16 +1142,6 @@ function createCrackleBuffer(ctx, seconds) {
 function buildGraph() {
   const ctx = audioCtx;
   const master = masterGainNode;
-  const warmth     = parseInt(sliders.warmth.value)     / 100;
-  const noiseAmt   = parseInt(sliders.noise.value)      / 100;
-  const wowAmt     = parseInt(sliders.wow.value)        / 100;
-  const crackleAmt = parseInt(sliders.crackle.value)    / 100;
-  const ageAmt     = parseInt(sliders.age.value)        / 100;
-  const resAmt     = parseInt(sliders.resonance.value)  / 100;
-  const wornAmt    = parseInt(sliders.worn.value)       / 100;
-  const rumbleAmt  = parseInt(sliders.rumble.value)     / 100;
-  const ghostAmt   = parseInt(sliders.ghost.value)      / 100;
-  const riaaMix    = (parseInt(sliders.riaa.value) - 50) / 50; // -1 warm … +1 bright
 
   // --- Main source ---
   sourceNode = ctx.createBufferSource();
@@ -1160,7 +1154,6 @@ function buildGraph() {
   const lfo = ctx.createOscillator();
   lfo.frequency.value = 0.5;
   lfoGainNode = ctx.createGain();
-  lfoGainNode.gain.value = wowAmt * 0.006;
   lfo.connect(lfoGainNode);
   lfoGainNode.connect(delayNode.delayTime);
   lfo.start();
@@ -1169,7 +1162,6 @@ function buildGraph() {
   const flutter = ctx.createOscillator();
   flutter.frequency.value = 7;
   flutterGainNode = ctx.createGain();
-  flutterGainNode.gain.value = wowAmt * 0.0012;
   flutter.connect(flutterGainNode);
   flutterGainNode.connect(delayNode.delayTime);
   flutter.start();
@@ -1183,7 +1175,6 @@ function buildGraph() {
   // Vinyl Age: progressive HF softening (14.5kHz → 8kHz at max)
   agingLpfNode = ctx.createBiquadFilter();
   agingLpfNode.type = 'lowpass';
-  agingLpfNode.frequency.value = 14500 - ageAmt * 6500;
   agingLpfNode.Q.value = 0.5;
 
   // Warmth: boost ~200 Hz
@@ -1191,28 +1182,23 @@ function buildGraph() {
   warmthFilterNode.type = 'peaking';
   warmthFilterNode.frequency.value = 220;
   warmthFilterNode.Q.value = 0.8;
-  warmthFilterNode.gain.value = warmth * 5;
 
   // High shelf cut for warmth
   highShelfNode = ctx.createBiquadFilter();
   highShelfNode.type = 'highshelf';
   highShelfNode.frequency.value = 6000;
-  highShelfNode.gain.value = -(warmth * 3);
 
   // RIAA Mismatch: 0–49 = warm/lush (bass lift, treble dip), 51–100 = bright/punchy
   riaaMismatchLowNode = ctx.createBiquadFilter();
   riaaMismatchLowNode.type = 'lowshelf';
   riaaMismatchLowNode.frequency.value = 200;
-  riaaMismatchLowNode.gain.value = -riaaMix * 3;
 
   riaaMismatchHighNode = ctx.createBiquadFilter();
   riaaMismatchHighNode.type = 'highshelf';
   riaaMismatchHighNode.frequency.value = 3000;
-  riaaMismatchHighNode.gain.value = riaaMix * 4;
 
   // Harmonic saturation
   waveShaper = ctx.createWaveShaper();
-  waveShaper.curve = makeCurve(warmth * 30 + 1);
   waveShaper.oversample = '4x';
 
   // Stylus Resonance: cartridge HF peak ~10kHz
@@ -1220,13 +1206,11 @@ function buildGraph() {
   stylusResNode.type = 'peaking';
   stylusResNode.frequency.value = 10000;
   stylusResNode.Q.value = 2.5;
-  stylusResNode.gain.value = resAmt * 6;
 
   // Worn Stylus: dulled highs above 8kHz
   wornShelfNode = ctx.createBiquadFilter();
   wornShelfNode.type = 'highshelf';
   wornShelfNode.frequency.value = 8000;
-  wornShelfNode.gain.value = -(wornAmt * 8);
 
   // Analyser for VU
   analyser = ctx.createAnalyser();
@@ -1251,7 +1235,6 @@ function buildGraph() {
   const ghostDelay = ctx.createDelay(2.0);
   ghostDelay.delayTime.value = 60 / 33.33;
   ghostGainNode = ctx.createGain();
-  ghostGainNode.gain.value = ghostAmt * 0.2;
   waveShaper.connect(ghostDelay);
   ghostDelay.connect(ghostGainNode);
   ghostGainNode.connect(master);
@@ -1267,7 +1250,6 @@ function buildGraph() {
   noiseLpf.frequency.value = 4000;
 
   noiseGainNode = ctx.createGain();
-  noiseGainNode.gain.value = noiseAmt * 0.04;
 
   noiseNode.connect(noiseLpf);
   noiseLpf.connect(noiseGainNode);
@@ -1285,7 +1267,6 @@ function buildGraph() {
   crackBpf.Q.value = 0.5;
 
   crackleGainNode = ctx.createGain();
-  crackleGainNode.gain.value = crackleAmt * 0.25;
 
   crackleNode.connect(crackBpf);
   crackBpf.connect(crackleGainNode);
@@ -1303,11 +1284,17 @@ function buildGraph() {
   rumbleBpf.Q.value = 0.8;
 
   rumbleGainNode = ctx.createGain();
-  rumbleGainNode.gain.value = rumbleAmt * 0.4;
 
   rumbleNode.connect(rumbleBpf);
   rumbleBpf.connect(rumbleGainNode);
   rumbleGainNode.connect(master);
+
+  // Topology is built; applyLiveKnob is the one place that knows what each
+  // knob means, so let it supply every value rather than restating the
+  // scaling factors here.
+  Object.keys(sliders).forEach(key => {
+    applyLiveKnob(key, parseInt(sliders[key].value) / 100);
+  });
 
   // Start all noise sources
   noiseNode.start();
@@ -1361,50 +1348,54 @@ function startPlayback() {
   buildGraph();
   startedAt = audioCtx.currentTime - pausedAt;
   sourceNode.start(0, pausedAt);
-  isPlaying = true;
 
-  platter.classList.add('spinning');
-  armLine.classList.add('playing');
-  playBtn.classList.add('playing');
-  playBtn.setAttribute('aria-label', 'Pause');
+  setTransportUI(true);
   setStatus('Playing', true);
 
   startVU();
   startClock();
 }
 
-function pausePlayback() {
-  if (!sourceNode) return;
-  pausedAt = audioCtx.currentTime - startedAt;
-  sourceNode.onended = null;
-  sourceNode.stop();
+// The platter, tonearm, play button and meters all reflect one fact, so one
+// place decides what they show.
+function setTransportUI(playing) {
+  isPlaying = playing;
+  platter.classList.toggle('spinning', playing);
+  armLine.classList.toggle('playing', playing);
+  playBtn.classList.toggle('playing', playing);
+  playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  if (!playing) {
+    cancelAnimationFrame(vuFrame);
+    cancelAnimationFrame(animFrame);
+    vuBars.forEach(b => b.style.height = '0%');
+  }
+}
+
+// The music and the three noise layers start together and stop together.
+function stopSources() {
+  if (sourceNode) {
+    sourceNode.onended = null;
+    sourceNode.stop();
+  }
   if (noiseNode) noiseNode.stop();
   if (crackleNode) crackleNode.stop();
   if (rumbleNode) rumbleNode.stop();
-  isPlaying = false;
-  platter.classList.remove('spinning');
-  armLine.classList.remove('playing');
-  playBtn.classList.remove('playing');
-  playBtn.setAttribute('aria-label', 'Play');
+}
+
+function pausePlayback() {
+  if (!sourceNode) return;
+  pausedAt = audioCtx.currentTime - startedAt;
+  stopSources();
+  setTransportUI(false);
   setStatus('Paused', false);
-  cancelAnimationFrame(vuFrame);
-  cancelAnimationFrame(animFrame);
-  vuBars.forEach(b => b.style.height = '0%');
 }
 
 function stopPlayback() {
   pausedAt = 0;
-  isPlaying = false;
-  platter.classList.remove('spinning');
-  armLine.classList.remove('playing');
-  playBtn.classList.remove('playing');
-  playBtn.setAttribute('aria-label', 'Play');
+  setTransportUI(false);
   setStatus('Finished', false);
-  cancelAnimationFrame(vuFrame);
-  cancelAnimationFrame(animFrame);
   progressFill.style.width = '0%';
   trackTime.textContent = `00:00 / ${formatTime(audioBuffer.duration)}`;
-  vuBars.forEach(b => b.style.height = '0%');
 }
 
 playBtn.addEventListener('click', () => {
@@ -1483,11 +1474,7 @@ progressWrap.addEventListener('click', e => {
   const seekTime = fraction * audioBuffer.duration;
 
   if (isPlaying) {
-    sourceNode.onended = null;
-    sourceNode.stop();
-    if (noiseNode) noiseNode.stop();
-    if (crackleNode) crackleNode.stop();
-    if (rumbleNode) rumbleNode.stop();
+    stopSources();
     pausedAt = seekTime;
     startPlayback();
   } else {
