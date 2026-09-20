@@ -752,6 +752,50 @@
     </div>
   </section>
 
+  <!-- Playback -->
+  <section class="panel">
+    <h2 class="section-head">Playback</h2>
+    <div class="playback">
+      <button class="play-btn" id="playBtn" disabled aria-label="Play"><span class="play-icon"></span></button>
+      <div class="track-info">
+        <div class="track-name" id="trackName">No file loaded</div>
+        <div class="track-time" id="trackTime">--:-- / --:--</div>
+      </div>
+      <div class="vu">
+        <div class="vu-bar"><div class="vu-fill" id="vu1"></div></div>
+        <div class="vu-bar"><div class="vu-fill" id="vu2"></div></div>
+        <div class="vu-bar"><div class="vu-fill" id="vu3"></div></div>
+        <div class="vu-bar"><div class="vu-fill" id="vu4"></div></div>
+        <div class="vu-bar"><div class="vu-fill" id="vu5"></div></div>
+      </div>
+    </div>
+
+    <div class="volume-row" id="volumeRow">
+      <div class="knob-label">
+        <button class="mute-btn" id="muteBtn" aria-label="Mute" title="Mute">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
+            <path class="waves" d="M12.5 3.5a7 7 0 0 1 0 9M10.5 5.5a4 4 0 0 1 0 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <path class="mute-x" d="M10.5 5.5l4 5M14.5 5.5l-4 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+        </button>
+        Volume
+      </div>
+      <input type="range" id="volume" min="0" max="100" value="80" aria-label="Master volume">
+      <span class="val" id="volumeVal">80%</span>
+    </div>
+
+    <div class="status-bar">
+      <div>
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">Standby</span>
+      </div>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- Presets -->
   <section class="panel">
     <h2 class="section-head">Preset</h2>
@@ -815,50 +859,6 @@
       <div class="knob-group">
         <div class="knob-label">RIAA Mismatch <button class="info-btn" data-effect="riaa">?</button><span class="val" id="riaaVal">50%</span></div>
         <input type="range" id="riaa" min="0" max="100" value="50">
-      </div>
-    </div>
-  </section>
-
-  <!-- Playback -->
-  <section class="panel">
-    <h2 class="section-head">Playback</h2>
-    <div class="playback">
-      <button class="play-btn" id="playBtn" disabled aria-label="Play"><span class="play-icon"></span></button>
-      <div class="track-info">
-        <div class="track-name" id="trackName">No file loaded</div>
-        <div class="track-time" id="trackTime">--:-- / --:--</div>
-      </div>
-      <div class="vu">
-        <div class="vu-bar"><div class="vu-fill" id="vu1"></div></div>
-        <div class="vu-bar"><div class="vu-fill" id="vu2"></div></div>
-        <div class="vu-bar"><div class="vu-fill" id="vu3"></div></div>
-        <div class="vu-bar"><div class="vu-fill" id="vu4"></div></div>
-        <div class="vu-bar"><div class="vu-fill" id="vu5"></div></div>
-      </div>
-    </div>
-
-    <div class="volume-row" id="volumeRow">
-      <div class="knob-label">
-        <button class="mute-btn" id="muteBtn" aria-label="Mute" title="Mute">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
-            <path class="waves" d="M12.5 3.5a7 7 0 0 1 0 9M10.5 5.5a4 4 0 0 1 0 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-            <path class="mute-x" d="M10.5 5.5l4 5M14.5 5.5l-4 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-          </svg>
-        </button>
-        Volume
-      </div>
-      <input type="range" id="volume" min="0" max="100" value="80" aria-label="Master volume">
-      <span class="val" id="volumeVal">80%</span>
-    </div>
-
-    <div class="status-bar">
-      <div>
-        <span class="status-dot" id="statusDot"></span>
-        <span class="status-text" id="statusText">Standby</span>
-      </div>
-      <div class="progress-wrap" id="progressWrap">
-        <div class="progress-fill" id="progressFill"></div>
       </div>
     </div>
   </section>
