@@ -61,6 +61,34 @@
     margin-top: 8px;
   }
 
+  /* Keyboard focus: an amber ring that reads on the dark faceplate.
+     Mouse users never see it; keyboard users always do. */
+  :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  input[type=range]:focus-visible::-webkit-slider-thumb {
+    box-shadow:
+      0 2px 3px rgba(0,0,0,0.8),
+      inset 0 1px 0 rgba(255,255,255,0.65),
+      0 0 0 2px var(--gold);
+  }
+
+  /* The platter spin, the lamp pulse and the tonearm sweep are all decorative
+     — the status text and the play button already say what is happening. */
+  @media (prefers-reduced-motion: reduce) {
+    .platter.spinning { animation: none; }
+    .status-dot.active { animation: none; }
+    .arm-line.playing { transition: none; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   /* === MAIN UNIT === */
   .unit {
     background: var(--surface);
@@ -229,8 +257,15 @@
     padding: 20px;
     text-align: center;
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
     background: rgba(0,0,0,0.2);
+    box-shadow:
+      inset 0 2px 5px rgba(0,0,0,0.5),
+      inset 0 -1px 0 rgba(232,213,170,0.05);
+  }
+
+  .upload-zone:active {
+    box-shadow: inset 0 3px 7px rgba(0,0,0,0.65);
   }
 
   .upload-zone:hover, .upload-zone.drag {
@@ -306,9 +341,15 @@
     cursor: pointer;
     margin-left: 5px;
     flex-shrink: 0;
-    transition: border-color 0.15s, color 0.15s;
+    transition: border-color 0.15s, color 0.15s, transform 0.08s, box-shadow 0.12s;
     padding: 0;
     line-height: 1;
+    box-shadow: inset 0 1px 0 rgba(232,213,170,0.15);
+  }
+
+  .info-btn:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
   }
 
   .info-btn:hover {
@@ -393,28 +434,75 @@
 
   .info-modal-close:hover { color: var(--cream); }
 
+  /* Faders: a slot routed into the faceplate, with a machined cap riding in
+     it. Light comes from above throughout — the slot is dark at its top lip
+     and catches light at the bottom; the cap is the reverse. */
   input[type=range] {
     -webkit-appearance: none;
+    appearance: none;
     width: 100%;
-    height: 3px;
-    border-radius: 0;
-    background: linear-gradient(90deg, var(--amber) var(--p, 50%), var(--ridge) var(--p, 50%));
+    height: 20px;
+    background: transparent;
     cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--amber) var(--p, 50%), #0d0a06 var(--p, 50%));
+    box-shadow:
+      inset 0 2px 3px rgba(0,0,0,0.9),
+      inset 0 -1px 0 rgba(232,213,170,0.07);
+  }
+
+  input[type=range]::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--amber) var(--p, 50%), #0d0a06 var(--p, 50%));
+    box-shadow:
+      inset 0 2px 3px rgba(0,0,0,0.9),
+      inset 0 -1px 0 rgba(232,213,170,0.07);
   }
 
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--cream);
-    border: 2px solid var(--amber);
-    box-shadow: 0 0 6px rgba(200,134,42,0.4);
-    transition: box-shadow 0.15s;
+    appearance: none;
+    width: 13px;
+    height: 20px;
+    margin-top: -7px;
+    border-radius: 2px;
+    background:
+      repeating-linear-gradient(90deg, rgba(0,0,0,0.30) 0 1px, transparent 1px 3px),
+      linear-gradient(180deg, #efe8d8 0%, #c9c0ad 46%, #8e8574 54%, #b8af9d 100%);
+    box-shadow:
+      0 2px 3px rgba(0,0,0,0.8),
+      inset 0 1px 0 rgba(255,255,255,0.65),
+      inset 0 -1px 0 rgba(0,0,0,0.45);
+    transition: box-shadow 0.12s, filter 0.12s;
   }
 
-  input[type=range]::-webkit-slider-thumb:hover {
-    box-shadow: 0 0 10px rgba(200,134,42,0.7);
+  input[type=range]::-moz-range-thumb {
+    width: 13px;
+    height: 20px;
+    border: none;
+    border-radius: 2px;
+    background:
+      repeating-linear-gradient(90deg, rgba(0,0,0,0.30) 0 1px, transparent 1px 3px),
+      linear-gradient(180deg, #efe8d8 0%, #c9c0ad 46%, #8e8574 54%, #b8af9d 100%);
+    box-shadow:
+      0 2px 3px rgba(0,0,0,0.8),
+      inset 0 1px 0 rgba(255,255,255,0.65);
+  }
+
+  input[type=range]:hover::-webkit-slider-thumb { filter: brightness(1.07); }
+
+  /* Pressed: the cap settles into the slot. */
+  input[type=range]:active::-webkit-slider-thumb {
+    box-shadow:
+      0 1px 1px rgba(0,0,0,0.8),
+      inset 0 1px 0 rgba(255,255,255,0.35),
+      inset 0 -1px 0 rgba(0,0,0,0.5);
+    filter: brightness(0.95);
   }
 
   /* === PLAYBACK === */
@@ -436,8 +524,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s, box-shadow 0.2s;
+    transition: background 0.15s, box-shadow 0.12s, transform 0.08s;
     flex-shrink: 0;
+    box-shadow:
+      0 2px 4px rgba(0,0,0,0.7),
+      inset 0 1px 0 rgba(232,213,170,0.12);
+  }
+
+  .play-btn:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow:
+      0 0 1px rgba(0,0,0,0.7),
+      inset 0 2px 5px rgba(0,0,0,0.75);
   }
 
   .play-icon {
@@ -514,12 +612,18 @@
     gap: 2px;
     align-items: flex-end;
     height: 32px;
+    padding: 3px;
+    border-radius: 2px;
+    background: #0d0a06;
+    box-shadow:
+      inset 0 2px 4px rgba(0,0,0,0.9),
+      inset 0 -1px 0 rgba(232,213,170,0.06);
   }
 
   .vu-bar {
     width: 5px;
     border-radius: 1px;
-    background: var(--ridge);
+    background: #24190e;
     height: 100%;
     position: relative;
     overflow: hidden;
@@ -569,6 +673,8 @@
     display: inline-flex;
     transition: color 0.15s;
   }
+
+  .mute-btn:active { transform: translateY(1px); }
 
   .mute-btn:hover { color: var(--cream); }
   .volume-row.muted .mute-btn { color: var(--label); }
@@ -626,18 +732,22 @@
     position: absolute;
     left: 0; right: 0; top: 50%;
     transform: translateY(-50%);
-    height: 3px;
-    background: var(--ridge);
-    border-radius: 2px;
+    height: 5px;
+    background: #0d0a06;
+    border-radius: 3px;
+    box-shadow:
+      inset 0 1px 2px rgba(0,0,0,0.9),
+      inset 0 -1px 0 rgba(232,213,170,0.06);
   }
 
   .progress-fill {
     position: absolute;
     left: 0; top: 50%;
     transform: translateY(-50%);
-    height: 3px;
+    height: 5px;
     background: var(--amber);
-    border-radius: 2px;
+    border-radius: 3px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
     width: 0%;
     transition: width 0.5s linear;
   }
@@ -698,7 +808,16 @@
     padding: 5px 11px;
     cursor: pointer;
     border-radius: 2px;
-    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    transition: border-color 0.15s, color 0.15s, background 0.15s,
+                box-shadow 0.12s, transform 0.08s;
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.5),
+      inset 0 1px 0 rgba(232,213,170,0.08);
+  }
+
+  .preset-btn:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
   }
 
   .preset-btn:hover {
