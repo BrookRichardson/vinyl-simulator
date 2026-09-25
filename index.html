@@ -824,29 +824,42 @@
     cursor: pointer;
   }
 
+  /* Track position is printed on the faceplate as a scale rather than cut
+     as a slot, so it doesn't read as another fader: a hairline with a tick
+     each minute (--tick, set per track), the played part lit, and a pointer
+     at the playhead like the needle on a tuning dial. */
   .progress-wrap::before {
     content: '';
     position: absolute;
     left: 0; right: 0; top: 50%;
     transform: translateY(-50%);
-    height: 5px;
-    background: #0d0a06;
-    border-radius: 3px;
-    box-shadow:
-      inset 0 1px 2px rgba(0,0,0,0.9),
-      inset 0 -1px 0 rgba(232,213,170,0.06);
+    height: 7px;
+    background:
+      linear-gradient(var(--dim), var(--dim)) 0 50% / 100% 1px no-repeat,
+      linear-gradient(var(--dim), var(--dim)) 100% 0 / 1px 100% no-repeat,
+      repeating-linear-gradient(90deg, var(--dim) 0 1px, transparent 1px var(--tick, 10%));
+    opacity: 0.55;
   }
 
   .progress-fill {
     position: absolute;
     left: 0; top: 50%;
     transform: translateY(-50%);
-    height: 5px;
+    height: 2px;
     background: var(--amber);
-    border-radius: 3px;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+    box-shadow: 0 0 6px rgba(200,134,42,0.55);
     width: 0%;
     transition: width 0.5s linear;
+  }
+
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    right: -4px; bottom: 3px;
+    width: 8px;
+    height: 6px;
+    background: var(--gold);
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
   }
 
   /* === SIDE (tracklist) ===
@@ -1680,6 +1693,7 @@ async function trackEnded() {
   if (seq !== loadSeq || !isPlaying) return;
   current = next;
   audioBuffer = buf;
+  setScale(audioBuffer.duration);
   showTrack(tracks[current]);
   renderSide();
   startMusic(-Math.max(0, BAND_GAP_S - (audioCtx.currentTime - endedAt)));
@@ -1783,6 +1797,13 @@ function prepareNext() {
   if (current + 1 < tracks.length) decodeTrack(current + 1).catch(() => {});
 }
 
+// One tick a minute along the progress scale — every five past 20 minutes,
+// so a long track's scale doesn't close up into a solid bar.
+function setScale(duration) {
+  const every = duration > 20 * 60 ? 300 : 60;
+  progressWrap.style.setProperty('--tick', (every / duration * 100) + '%');
+}
+
 function showTrack(t) {
   trackName.textContent = t.file.name;
   labelText.textContent = t.file.name.replace(/\.[^.]+$/, '');
@@ -1805,6 +1826,7 @@ async function loadTrack(i, { autoplay = true } = {}) {
     const decoded = await decodeTrack(i);
     if (superseded()) return;
     audioBuffer = decoded;
+    setScale(audioBuffer.duration);
     playBtn.disabled = false;
     progressFill.style.width = '0%';
     trackTime.textContent = `00:00 / ${formatTime(audioBuffer.duration)}`;
