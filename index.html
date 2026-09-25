@@ -1485,7 +1485,14 @@ function buildGraph() {
 }
 
 // ─── Load audio file ──────────────────────────────────────
+// Loads can overlap — a big file then a small one decodes the small one
+// first. Each load takes a number, and after every await it carries on only
+// if no newer load has begun, so the last file chosen is the one that plays.
+let loadSeq = 0;
+
 async function loadFile(file) {
+  const seq = ++loadSeq;
+  const superseded = () => seq !== loadSeq;
   setStatus('Loading…', false);
   trackName.textContent = file.name;
   labelText.textContent = file.name.replace(/\.[^.]+$/, '');
@@ -1499,7 +1506,10 @@ async function loadFile(file) {
       masterGainNode.connect(audioCtx.destination);
     }
     const ab = await file.arrayBuffer();
-    audioBuffer = await audioCtx.decodeAudioData(ab);
+    if (superseded()) return;
+    const decoded = await audioCtx.decodeAudioData(ab);
+    if (superseded()) return;
+    audioBuffer = decoded;
     playBtn.disabled = false;
     const dur = formatTime(audioBuffer.duration);
     trackTime.textContent = `00:00 / ${dur}`;
@@ -1510,8 +1520,10 @@ async function loadFile(file) {
     // across an await, though, so a browser may still refuse to resume — in
     // that case stay on Ready and let the play button do it.
     if (audioCtx.state === 'suspended') await audioCtx.resume().catch(() => {});
+    if (superseded()) return;
     if (audioCtx.state === 'running') startPlayback();
   } catch(e) {
+    if (superseded()) return;   // a newer load owns the status now
     setStatus('Error loading file', false);
     console.error(e);
   }
