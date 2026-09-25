@@ -123,7 +123,48 @@
     height: 220px;
   }
 
+  /* The platter: a machined metal disc the record sits on, and the thing
+     that turns. Exactly the 220px the old dark ring round the record took
+     up, so the deck — and the tonearm's reach — don't move. */
   .platter {
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Bevelled rim, lit from above. Radially symmetric, like a machined
+       edge, so the metal itself reads as still while it spins. */
+    background: radial-gradient(circle closest-side,
+      #151311 0 90.5%,
+      #3b3732 91.5%, #6a645a 94.5%, #57524a 97%, #2b2723 99.4%, #1b1815 100%);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.9), 0 0 0 1px #0b0a09;
+    transition: box-shadow 0.4s;
+  }
+
+  .platter.spinning {
+    animation: spin 1.8s linear infinite;
+    box-shadow: 0 4px 30px rgba(0,0,0,0.9), 0 0 0 1px #0b0a09, 0 0 20px rgba(200,134,42,0.12);
+  }
+
+  /* Strobe dots round the rim, as on a direct-drive deck. They're the one
+     part that isn't symmetric, so the spin shows at the edge as well as on
+     the label. 48 dots, 7.5deg apart: at 33 1/3 rpm the platter turns 3.33deg
+     per 60Hz frame, and dots closer than twice that alias — the eye pairs
+     each with the one behind and the ring seems to creep backwards. */
+  .platter::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: repeating-conic-gradient(rgba(232,222,200,0.55) 0 2.6deg, transparent 2.6deg 7.5deg);
+    -webkit-mask: radial-gradient(circle closest-side, transparent 0 93.6%, #000 94% 97.4%, transparent 97.8%);
+            mask: radial-gradient(circle closest-side, transparent 0 93.6%, #000 94% 97.4%, transparent 97.8%);
+  }
+
+  .record {
     width: 200px;
     height: 200px;
     border-radius: 50%;
@@ -143,17 +184,12 @@
         rgba(255,255,255,0.035) 0 1px, transparent 1px 2px),
       radial-gradient(circle closest-side, #171515 0%, #121111 70%, #0e0d0d 100%);
     position: relative;
-    transition: box-shadow 0.4s;
-    box-shadow: 0 0 0 1px #2a2020, 0 4px 30px rgba(0,0,0,0.9), 0 0 0 10px #0d0c0c;
     flex-shrink: 0;
+    /* A thin record casting a slight shadow onto the platter. */
+    box-shadow: 0 0 0 1px #2a2020, 0 1px 4px rgba(0,0,0,0.8);
   }
 
-  .platter.spinning {
-    animation: spin 1.8s linear infinite;
-    box-shadow: 0 0 0 1px #2a2020, 0 4px 30px rgba(0,0,0,0.9), 0 0 0 10px #0d0c0c, 0 0 20px rgba(200,134,42,0.12);
-  }
-
-  /* A studio light reflecting off the grooves. It lives outside .platter
+  /* A studio light reflecting off the grooves. It lives outside the platter
      so it doesn't rotate — the reflection holds still while the record
      turns under it. Light from above-left, as on the rest of the faceplate.
      The label is matte paper, so it's masked out. */
@@ -892,10 +928,12 @@
   <!-- Record deck visual -->
   <div class="deck">
     <div class="platter" id="platter">
-      <div class="record-label">
-        <span id="labelText">ROUGH<br>TRADE<br>◆</span>
+      <div class="record">
+        <div class="record-label">
+          <span id="labelText">ROUGH<br>TRADE<br>◆</span>
+        </div>
+        <div class="spindle"></div>
       </div>
-      <div class="spindle"></div>
     </div>
     <div class="sheen" aria-hidden="true"></div>
     <div class="tonearm-wrap">
