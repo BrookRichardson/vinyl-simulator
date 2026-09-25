@@ -1515,6 +1515,9 @@ function startPlayback() {
   if (!audioBuffer) return;
   if (audioCtx.state === 'suspended') audioCtx.resume();
 
+  // buildGraph replaces the node references, so tear down whatever is still
+  // sounding first or it plays on unreachable (e.g. two loads finishing close together).
+  if (isPlaying) stopSources();
   buildGraph();
   startedAt = audioCtx.currentTime - pausedAt;
   sourceNode.start(0, pausedAt);
