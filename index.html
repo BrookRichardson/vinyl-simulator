@@ -1565,6 +1565,9 @@ playBtn.addEventListener('click', () => {
 
 // ─── VU meter ─────────────────────────────────────────────
 function startVU() {
+  // Starting a meter replaces any meter already running — seeking during
+  // playback calls this again without a pause in between.
+  cancelAnimationFrame(vuFrame);
   const data = new Uint8Array(analyser.frequencyBinCount);
   function tick() {
     analyser.getByteFrequencyData(data);
@@ -1589,6 +1592,7 @@ function avg(data, lo, hi) {
 
 // ─── Clock / progress ─────────────────────────────────────
 function startClock() {
+  cancelAnimationFrame(animFrame);   // likewise: one clock at a time
   function tick() {
     if (!isPlaying) return;
     const elapsed = audioCtx.currentTime - startedAt;
