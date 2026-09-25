@@ -849,6 +849,84 @@
     transition: width 0.5s linear;
   }
 
+  /* === SIDE (tracklist) ===
+     Set like the back of a sleeve: band numbers and lengths in the mono,
+     titles in the label's serif, a dotted leader between. The band playing
+     is lit amber, as the active preset is. */
+  .tracklist { list-style: none; }
+
+  .track {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    width: 100%;
+    padding: 6px 4px;
+    background: transparent;
+    border: none;
+    border-radius: 2px;
+    color: var(--cream);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .track:hover { background: rgba(200,134,42,0.05); }
+  .track:active { transform: translateY(1px); }
+
+  .track-no {
+    min-width: 2.2em;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+  }
+
+  .track-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-family: 'Playfair Display', serif;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .track-lead {
+    flex: 1 1 12px;
+    min-width: 12px;
+    border-bottom: 1px dotted var(--ridge);
+    align-self: center;
+    transform: translateY(3px);
+  }
+
+  .track-len {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--dim);
+  }
+
+  .track.current .track-no,
+  .track.current .track-len { color: var(--amber); }
+  .track.current .track-title { color: var(--gold); }
+  .track.current .track-lead { border-bottom-color: rgba(200,134,42,0.4); }
+
+  .add-tracks {
+    margin-top: 10px;
+    padding: 4px;
+    background: transparent;
+    border: none;
+    color: var(--dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+
+  .add-tracks:hover { color: var(--cream); }
+  .add-tracks:active { transform: translateY(1px); }
+
   /* === PRESETS === */
   /* === SECTIONS ===
      Each block of the faceplate carries a silkscreened legend: a note glyph,
@@ -962,10 +1040,10 @@
   <section class="panel">
     <h2 class="section-head">Source</h2>
     <div class="upload-zone" id="dropzone">
-      <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac">
+      <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac" multiple>
       <div class="upload-icon">♫</div>
       <div class="upload-label">
-        Drop your audio file here
+        Drop a track here, or several for a whole side
         <strong>or click to browse · MP3, WAV, FLAC, AAC</strong>
       </div>
     </div>
@@ -1013,6 +1091,14 @@
         <div class="progress-fill" id="progressFill"></div>
       </div>
     </div>
+  </section>
+
+  <!-- Side: appears when several files are on -->
+  <section class="panel" id="sidePanel" hidden>
+    <h2 class="section-head">Side A</h2>
+    <ol class="tracklist" id="tracklist"></ol>
+    <button type="button" class="add-tracks" id="addTracksBtn">+ Add tracks</button>
+    <input type="file" id="addInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac" multiple hidden>
   </section>
 
   <!-- Presets -->
@@ -1153,6 +1239,10 @@ const statusText = document.getElementById('statusText');
 const progressFill = document.getElementById('progressFill');
 const progressWrap = document.getElementById('progressWrap');
 const vuBars     = [1,2,3,4,5].map(i => document.getElementById('vu'+i));
+const sidePanel  = document.getElementById('sidePanel');
+const tracklist  = document.getElementById('tracklist');
+const addTracksBtn = document.getElementById('addTracksBtn');
+const addInput   = document.getElementById('addInput');
 const volumeEl   = document.getElementById('volume');
 const volumeVal  = document.getElementById('volumeVal');
 const volumeRow  = document.getElementById('volumeRow');
@@ -1571,39 +1661,155 @@ function startMusic(offset) {
   startedAt = audioCtx.currentTime - offset;
 }
 
-function trackEnded() {
+// A track has ended. With another band to come, the needle runs on through
+// the silent band into it: the record, the noise and the effects never stop.
+async function trackEnded() {
+  const next = current + 1;
+  if (next >= tracks.length) { endOfSide(); return; }
+  const seq = ++loadSeq, endedAt = audioCtx.currentTime;
+  let buf;
+  try {
+    buf = await decodeTrack(next);   // normally already decoded
+  } catch (e) {
+    if (seq !== loadSeq) return;
+    stopPlayback();
+    setStatus('Error loading file', false);
+    console.error(e);
+    return;
+  }
+  if (seq !== loadSeq || !isPlaying) return;
+  current = next;
+  audioBuffer = buf;
+  showTrack(tracks[current]);
+  renderSide();
+  startMusic(-Math.max(0, BAND_GAP_S - (audioCtx.currentTime - endedAt)));
+  prepareNext();
+}
+
+// The side has run out: wind down, lift the arm, and set the needle back at
+// the start of the side ready to play again.
+function endOfSide() {
   stopPlayback();
+  if (tracks.length > 1) loadTrack(0, { autoplay: false });
 }
 
 // ─── Load audio file ──────────────────────────────────────
+let loadSeq = 0;   // see loadTrack
+
+function ensureContext() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGainNode = audioCtx.createGain();
+  masterGainNode.gain.value = volumeToGain();
+  masterGainNode.connect(audioCtx.destination);
+}
+
+// ─── The side (playlist) ──────────────────────────────────
+// Several files make one side of a record: bands played in order with a
+// short silent band between, the surface noise carrying on through it and
+// the arm working inward across the whole side. One file is simply a side
+// with one band, so nothing changes for it.
+const BAND_GAP_S = 2;
+let tracks = [];             // [{ file, title, duration }] — duration null until known
+let current = 0;             // the band the needle is on
+const decodes = new Map();   // band index -> Promise<AudioBuffer>
+
+const AUDIO_EXT = /\.(mp3|wav|flac|ogg|oga|aac|m4a|opus|weba)$/i;
+const isAudio = f => (f.type && f.type.startsWith('audio/')) || AUDIO_EXT.test(f.name);
+const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+
+// "03 - Song.mp3" -> "Song": the band number already says where it sits.
+function bandTitle(name) {
+  const t = name.replace(/\.[^.]+$/, '').replace(/^\d+\s*[-._)]\s*/, '').trim();
+  return t || name;
+}
+
+function toTracks(files) {
+  return files.map(file => ({ file, title: bandTitle(file.name), duration: null }));
+}
+
+function setPlaylist(files) {
+  tracks = toTracks(files);
+  current = 0;
+  decodes.clear();
+  tracks.forEach(readDuration);
+  renderSide();
+}
+
+function addToPlaylist(files) {
+  const added = toTracks(files);
+  tracks.push(...added);
+  added.forEach(readDuration);
+  renderSide();
+  if (audioCtx) prepareNext();   // the new first band may now be up next
+}
+
+// The tracklist wants every length up front, but decoding a file to learn
+// it costs its whole decoded size. The browser can read just the length
+// from the file's header instead; the decoded length replaces it later.
+function readDuration(track) {
+  try {
+    const url = URL.createObjectURL(track.file);
+    const probe = new Audio();
+    probe.preload = 'metadata';
+    probe.onloadedmetadata = () => {
+      if (track.duration === null && isFinite(probe.duration)) {
+        track.duration = probe.duration;
+        renderSide();
+      }
+      URL.revokeObjectURL(url);
+    };
+    probe.onerror = () => URL.revokeObjectURL(url);
+    probe.src = url;
+  } catch (e) { /* the decoded length will fill it in */ }
+}
+
+// Decoded audio is large (60-70MB per three minutes), so only the band
+// playing and the one after it are ever held.
+function decodeTrack(i) {
+  if (!decodes.has(i)) {
+    const t = tracks[i];
+    const p = t.file.arrayBuffer()
+      .then(ab => audioCtx.decodeAudioData(ab))
+      .then(buf => { t.duration = buf.duration; renderSide(); return buf; })
+      .catch(e => { if (decodes.get(i) === p) decodes.delete(i); throw e; });
+    decodes.set(i, p);
+  }
+  return decodes.get(i);
+}
+
+function prepareNext() {
+  for (const k of [...decodes.keys()]) if (k !== current && k !== current + 1) decodes.delete(k);
+  if (current + 1 < tracks.length) decodeTrack(current + 1).catch(() => {});
+}
+
+function showTrack(t) {
+  trackName.textContent = t.file.name;
+  labelText.textContent = t.file.name.replace(/\.[^.]+$/, '');
+}
+
 // Loads can overlap — a big file then a small one decodes the small one
 // first. Each load takes a number, and after every await it carries on only
 // if no newer load has begun, so the last file chosen is the one that plays.
-let loadSeq = 0;
-
-async function loadFile(file) {
+async function loadTrack(i, { autoplay = true } = {}) {
   const seq = ++loadSeq;
   const superseded = () => seq !== loadSeq;
-  setStatus('Loading…', false);
-  trackName.textContent = file.name;
-  labelText.textContent = file.name.replace(/\.[^.]+$/, '');
+  current = i;
+  if (autoplay) setStatus('Loading…', false);
+  showTrack(tracks[i]);
   playBtn.disabled = true;
+  renderSide();
 
   try {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      masterGainNode = audioCtx.createGain();
-      masterGainNode.gain.value = volumeToGain();
-      masterGainNode.connect(audioCtx.destination);
-    }
-    const ab = await file.arrayBuffer();
-    if (superseded()) return;
-    const decoded = await audioCtx.decodeAudioData(ab);
+    ensureContext();
+    const decoded = await decodeTrack(i);
     if (superseded()) return;
     audioBuffer = decoded;
     playBtn.disabled = false;
-    const dur = formatTime(audioBuffer.duration);
-    trackTime.textContent = `00:00 / ${dur}`;
+    progressFill.style.width = '0%';
+    trackTime.textContent = `00:00 / ${formatTime(audioBuffer.duration)}`;
+    prepareNext();
+    if (!autoplay) return;
     setStatus('Ready', false);
 
     // Choosing a track is itself the gesture that unblocks audio, so drop the
@@ -1618,6 +1824,64 @@ async function loadFile(file) {
     setStatus('Error loading file', false);
     console.error(e);
   }
+}
+
+function loadFile(file) {
+  setPlaylist([file]);
+  return loadTrack(0);
+}
+
+// Put the needle on a band, as if lowering it by hand.
+function cueTrack(i) {
+  if (isPlaying) pausePlayback();
+  pausedAt = 0;
+  loadTrack(i);
+}
+
+// Where the needle is across the whole side, 0-1 — or null while any band's
+// length is still unknown. `elapsed` runs negative through the silent band
+// before a track.
+function sidePosition(elapsed) {
+  if (!tracks.length) return null;
+  let before = 0, total = 0;
+  for (let j = 0; j < tracks.length; j++) {
+    const d = tracks[j].duration;
+    if (d == null) return null;
+    if (j < current) before += d + BAND_GAP_S;
+    total += d + (j ? BAND_GAP_S : 0);
+  }
+  return Math.min(Math.max((before + elapsed) / total, 0), 1);
+}
+
+// Tracklist, set like the back of a sleeve. Rows are updated in place, not
+// rebuilt, so keyboard focus survives lengths arriving.
+function renderSide() {
+  sidePanel.hidden = tracks.length < 2;
+  if (sidePanel.hidden) return;
+  while (tracklist.children.length > tracks.length) tracklist.lastChild.remove();
+  tracks.forEach((t, i) => {
+    let row = tracklist.children[i];
+    if (!row) {
+      row = document.createElement('li');
+      row.innerHTML = '<button type="button" class="track"><span class="track-no"></span>' +
+        '<span class="track-title"></span><span class="track-lead" aria-hidden="true"></span>' +
+        '<span class="track-len"></span></button>';
+      row.firstChild.addEventListener('click', () => cueTrack(i));
+      tracklist.appendChild(row);
+    }
+    const btn = row.firstChild;
+    btn.querySelector('.track-no').textContent = 'A' + (i + 1);
+    btn.querySelector('.track-title').textContent = t.title;
+    btn.querySelector('.track-len').textContent = t.duration == null ? '–:––' : sleeveTime(t.duration);
+    btn.classList.toggle('current', i === current);
+    if (i === current) btn.setAttribute('aria-current', 'true');
+    else btn.removeAttribute('aria-current');
+  });
+}
+
+function sleeveTime(s) {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2, '0');
 }
 
 // ─── Playback controls ────────────────────────────────────
@@ -1793,12 +2057,15 @@ function startClock() {
   cancelAnimationFrame(animFrame);  // likewise, one clock at a time
   function tick() {
     if (!isPlaying) return;
-    const elapsed = audioCtx.currentTime - startedAt;
+    const elapsed = audioCtx.currentTime - startedAt;   // negative in a silent band
     const dur = audioBuffer.duration;
-    const frac = Math.min(elapsed / dur, 1);
-    trackTime.textContent = `${formatTime(elapsed)} / ${formatTime(dur)}`;
+    const played = Math.min(Math.max(elapsed, 0), dur);
+    const frac = played / dur;
+    trackTime.textContent = `${formatTime(played)} / ${formatTime(dur)}`;
     progressFill.style.width = (frac * 100).toFixed(2) + '%';
-    const arm = ARM_LEAD_IN_DEG + (ARM_RUN_OUT_DEG - ARM_LEAD_IN_DEG) * frac;
+    // The arm crosses the whole side, not each track.
+    const side = sidePosition(Math.min(elapsed, dur)) ?? frac;
+    const arm = ARM_LEAD_IN_DEG + (ARM_RUN_OUT_DEG - ARM_LEAD_IN_DEG) * side;
     if (armShown === null || Math.abs(arm - armShown) >= ARM_STEP_DEG) {
       armLine.style.setProperty('--arm', arm.toFixed(2) + 'deg');
       armShown = arm;
@@ -1822,12 +2089,27 @@ function setStatus(msg, active) {
 
 // ─── File input / drag-drop ───────────────────────────────
 dropzone.addEventListener('click', () => fileInput.click());
+// Choosing or dropping files puts a new record on: one file plays as before,
+// several become a side, in filename order.
+function putOnRecord(fileList) {
+  const files = [...fileList].filter(isAudio).sort(byName);
+  if (!files.length) return;
+  if (isPlaying) pausePlayback();
+  pausedAt = 0;
+  setPlaylist(files);
+  loadTrack(0);
+}
+
 fileInput.addEventListener('change', e => {
-  if (e.target.files[0]) {
-    if (isPlaying) pausePlayback();
-    pausedAt = 0;
-    loadFile(e.target.files[0]);
-  }
+  putOnRecord(e.target.files);
+  e.target.value = '';   // choosing the same files again should still load
+});
+
+addTracksBtn.addEventListener('click', () => addInput.click());
+addInput.addEventListener('change', e => {
+  const files = [...e.target.files].filter(isAudio).sort(byName);
+  if (files.length) addToPlaylist(files);
+  e.target.value = '';
 });
 
 // ─── Seek on progress bar click ──────────────────────────
@@ -1938,12 +2220,7 @@ dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
 dropzone.addEventListener('drop', e => {
   e.preventDefault();
   dropzone.classList.remove('drag');
-  const file = e.dataTransfer.files[0];
-  if (file) {
-    if (isPlaying) pausePlayback();
-    pausedAt = 0;
-    loadFile(file);
-  }
+  putOnRecord(e.dataTransfer.files);
 });
 </script>
 </body>
