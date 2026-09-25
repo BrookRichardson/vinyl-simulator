@@ -268,14 +268,31 @@
     z-index: 1;
   }
 
+  /* The bearing the arm pivots in, centred on the pivot (7px in from the
+     top-right). Drawn over the root of the tube so the arm comes out of it. */
   .tonearm {
     position: absolute;
-    top: 0; right: 0;
-    width: 14px;
-    height: 14px;
+    top: -5px; right: -5px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    background: radial-gradient(circle, #888 30%, #555 100%);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.6);
+    background:
+      radial-gradient(circle, #d6d1c7 0 2.5px, #8a857c 3px 4.5px, transparent 5px),
+      radial-gradient(circle at 40% 35%, #6e6961, #3a3632 70%, #24211e);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.15);
+    z-index: 2;
+  }
+
+  /* Where the arm lies when it isn't playing: under the tube, just behind
+     the headshell, clear of the platter. */
+  .arm-rest {
+    position: absolute;
+    left: 95.3px; top: 120.5px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #5c5750, #2a2622);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12);
   }
 
   .arm-line {
@@ -283,9 +300,10 @@
     top: 7px; right: 7px;
     width: 3px;
     height: 130px;
-    background: linear-gradient(180deg, #999, #666);
+    /* A round tube: bright along the top, falling off to either side. */
+    background: linear-gradient(90deg, #6d6a64, #d4d0c8 45%, #8a867e);
     transform-origin: top center;
-    transform: rotate(-6deg);
+    transform: rotate(-9deg);
     border-radius: 2px;
     /* On the base rule, so the arm glides both ways: onto the record, back
        to its rest, and across to a new spot on seek. */
@@ -295,17 +313,54 @@
   /* --arm is set from playback progress: the stylus starts at the lead-in
      and works inward toward the label as the track plays. */
   .arm-line.playing {
-    transform: rotate(var(--arm, 8.7deg));
+    transform: rotate(var(--arm, 6.1deg));
   }
 
+  /* Counterweight: behind the pivot on the same tube, so it turns with it. */
+  .counterweight {
+    position: absolute;
+    top: -24px; left: -4px;
+    width: 11px;
+    height: 15px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #4a4640, #aaa49a 40%, #5c5750);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+
+  /* Headshell at the usual ~22° offset, with a finger lift for cueing by
+     hand. The stylus at its tip is the point that meets the groove. */
   .arm-head {
     position: absolute;
-    bottom: -6px; left: -3px;
-    width: 9px;
-    height: 9px;
-    background: var(--needle);
+    top: 124px; left: -4px;
+    width: 11px;
+    height: 16px;
+    transform-origin: 50% 0;
     transform: rotate(22deg);
-    clip-path: polygon(50% 100%, 0% 0%, 100% 0%);
+    border-radius: 1px 1px 3px 3px;
+    background: linear-gradient(90deg, #3a3632, #8f8a80 45%, #4a4640);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.7);
+  }
+
+  .arm-head::before {
+    content: '';
+    position: absolute;
+    top: 4px; left: 100%;
+    width: 8px;
+    height: 2px;
+    border-radius: 1px;
+    background: #9a958b;
+    transform-origin: left center;
+    transform: rotate(-24deg);
+  }
+
+  .stylus {
+    position: absolute;
+    bottom: -2px; left: 50%;
+    width: 3px;
+    height: 3px;
+    margin-left: -1.5px;
+    border-radius: 50%;
+    background: var(--needle);
   }
 
   @keyframes spin {
@@ -937,9 +992,11 @@
     </div>
     <div class="sheen" aria-hidden="true"></div>
     <div class="tonearm-wrap">
+      <div class="arm-rest"></div>
       <div class="tonearm"></div>
       <div class="arm-line" id="armLine">
-        <div class="arm-head"></div>
+        <div class="counterweight"></div>
+        <div class="arm-head"><div class="stylus"></div></div>
       </div>
     </div>
   </div>
@@ -1700,11 +1757,11 @@ function avg(data, lo, hi) {
 
 // ─── Clock / progress ─────────────────────────────────────
 // Tonearm angles for the outermost groove (lead-in, r≈94px) and the last
-// groove before the run-out (r≈42px), given where the pivot sits relative to
-// the platter. The grooves are evenly pitched, so radius falls linearly with
+// groove before the run-out (r≈42px), measured at the stylus tip — which the
+// headshell's offset angle puts slightly inboard of the tube. The grooves are evenly pitched, so radius falls linearly with
 // time; interpolating the angle linearly tracks that to within 0.3px.
-const ARM_LEAD_IN_DEG = 8.7;
-const ARM_RUN_OUT_DEG = 31;
+const ARM_LEAD_IN_DEG = 6.1;
+const ARM_RUN_OUT_DEG = 28.2;
 // Retargeting a CSS transition every frame restarts its easing from rest each
 // time, so the arm would crawl instead of glide. Only move it once it has
 // something to show — a quarter degree is ~0.6px at the stylus — so each
