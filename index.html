@@ -308,15 +308,16 @@
     gap: 16px 24px;
   }
 
-  /* Two columns of labels like "STYLUS RESONANCE ? 100%" need ~350px of
-     panel; stack them below 390px to leave some slack. */
-  @container (max-width: 390px) {
+  /* Two columns only when every label fits on one line — "STYLUS RESONANCE"
+     and "TURNTABLE RUMBLE" need ~560px of panel. Below 580px (some slack for
+     font rendering) they stack. The desktop panel is 622px, so it keeps two. */
+  @container (max-width: 579px) {
     .controls { grid-template-columns: minmax(0, 1fr); }
   }
   /* Browsers without container queries: the same break as a viewport width
-     (390px of panel is a 480px screen). */
+     (580px of panel is a 670px screen). */
   @supports not (container-type: inline-size) {
-    @media (max-width: 480px) {
+    @media (max-width: 669px) {
       .controls { grid-template-columns: minmax(0, 1fr); }
     }
   }
