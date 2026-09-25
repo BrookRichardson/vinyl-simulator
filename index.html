@@ -1023,6 +1023,8 @@ let sourceNode = null;
 let noiseNode = null;
 let crackleBuf = null;
 let crackleNode = null;
+let lfoNode = null;       // wow
+let flutterNode = null;   // flutter
 let analyser = null;
 let isPlaying = false;
 let startedAt = 0;
@@ -1354,20 +1356,20 @@ function buildGraph() {
   const delayNode = ctx.createDelay(0.12);
   delayNode.delayTime.value = 0.02;
 
-  const lfo = ctx.createOscillator();
-  lfo.frequency.value = 0.5;
+  lfoNode = ctx.createOscillator();
+  lfoNode.frequency.value = 0.5;
   lfoGainNode = ctx.createGain();
-  lfo.connect(lfoGainNode);
+  lfoNode.connect(lfoGainNode);
   lfoGainNode.connect(delayNode.delayTime);
-  lfo.start();
+  lfoNode.start();
 
   // Flutter (fast subtle pitch wobble, ~7 Hz)
-  const flutter = ctx.createOscillator();
-  flutter.frequency.value = 7;
+  flutterNode = ctx.createOscillator();
+  flutterNode.frequency.value = 7;
   flutterGainNode = ctx.createGain();
-  flutter.connect(flutterGainNode);
+  flutterNode.connect(flutterGainNode);
   flutterGainNode.connect(delayNode.delayTime);
-  flutter.start();
+  flutterNode.start();
 
   // Low-pass (vinyl rolls off at ~15kHz)
   const lowPass = ctx.createBiquadFilter();
@@ -1539,7 +1541,9 @@ function setTransportUI(playing) {
   }
 }
 
-// The music and the three noise layers start together and stop together.
+// Every node that generates sound for one play — the music, the three noise
+// layers and the wow/flutter oscillators — stops together. Each play builds a
+// fresh graph, so anything left running here keeps an old graph alive.
 function stopSources() {
   if (sourceNode) {
     sourceNode.onended = null;
@@ -1548,6 +1552,8 @@ function stopSources() {
   if (noiseNode) noiseNode.stop();
   if (crackleNode) crackleNode.stop();
   if (rumbleNode) rumbleNode.stop();
+  if (lfoNode) lfoNode.stop();
+  if (flutterNode) flutterNode.stop();
 }
 
 function pausePlayback() {
@@ -1559,6 +1565,9 @@ function pausePlayback() {
 }
 
 function stopPlayback() {
+  // The music has ended by itself, but the noise layers loop and the
+  // oscillators run until told otherwise.
+  stopSources();
   pausedAt = 0;
   setTransportUI(false);
   setStatus('Finished', false);
