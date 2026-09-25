@@ -1108,6 +1108,7 @@
 let audioCtx = null;
 let audioBuffer = null;
 let sourceNode = null;
+let musicIn = null;      // where a track's source joins the effects chain
 let noiseNode = null;
 let crackleBuf = null;
 let crackleNode = null;
@@ -1437,10 +1438,6 @@ function buildGraph() {
   const ctx = audioCtx;
   const master = masterGainNode;
 
-  // --- Main source ---
-  sourceNode = ctx.createBufferSource();
-  sourceNode.buffer = audioBuffer;
-
   // Wow (slow pitch drift, ~0.5 Hz)
   const delayNode = ctx.createDelay(0.12);
   delayNode.delayTime.value = 0.02;
@@ -1511,8 +1508,9 @@ function buildGraph() {
   analyser.fftSize = 256;
   analyser.smoothingTimeConstant = 0.6;
 
-  // Connect main chain
-  sourceNode.connect(delayNode);
+  // Connect main chain. The music itself joins at the delay (see startMusic),
+  // so one track can follow another through the same chain.
+  musicIn = delayNode;
   delayNode.connect(lowPass);
   lowPass.connect(agingLpfNode);
   agingLpfNode.connect(warmthFilterNode);
@@ -1559,11 +1557,22 @@ function buildGraph() {
   noiseNode.start();
   crackleNode.start();
   rumbleNode.start();
+}
 
-  // Source done handler
-  sourceNode.onended = () => {
-    if (isPlaying) stopPlayback();
-  };
+// Start the current track `offset` seconds in. A negative offset means the
+// track begins that many seconds from now — the silent band between tracks.
+function startMusic(offset) {
+  sourceNode = audioCtx.createBufferSource();
+  sourceNode.buffer = audioBuffer;
+  sourceNode.connect(musicIn);
+  sourceNode.onended = () => { if (isPlaying) trackEnded(); };
+  if (offset < 0) sourceNode.start(audioCtx.currentTime - offset, 0);
+  else sourceNode.start(0, offset);
+  startedAt = audioCtx.currentTime - offset;
+}
+
+function trackEnded() {
+  stopPlayback();
 }
 
 // ─── Load audio file ──────────────────────────────────────
@@ -1620,8 +1629,7 @@ function startPlayback() {
   // sounding first or it plays on unreachable (e.g. two loads finishing close together).
   if (isPlaying) stopSources();
   buildGraph();
-  startedAt = audioCtx.currentTime - pausedAt;
-  sourceNode.start(0, pausedAt);
+  startMusic(pausedAt);
 
   setTransportUI(true);
   setStatus('Playing', true);
