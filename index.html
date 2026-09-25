@@ -81,7 +81,7 @@
   @media (prefers-reduced-motion: reduce) {
     .platter.spinning { animation: none; }
     .status-dot.active { animation: none; }
-    .arm-line.playing { transition: none; }
+    .arm-line { transition: none; }
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
@@ -127,23 +127,21 @@
     width: 200px;
     height: 200px;
     border-radius: 50%;
-    background: radial-gradient(circle at 50% 50%,
-      #2a2020 0%,
-      #1a1515 8%,
-      #111010 9%,
-      #1a1818 10%,
-      #111010 23%,
-      #1a1818 24%,
-      #111010 38%,
-      #1a1818 39%,
-      #111010 53%,
-      #1a1818 54%,
-      #111010 68%,
-      #1a1818 69%,
-      #111010 83%,
-      #1a1818 84%,
-      #0d0c0c 100%
-    );
+    /* closest-side makes 100% the disc's own radius (100px), so each stop
+       below is a radius in px: label to 33, glossy run-out to 41, grooves
+       to 96 with three smooth gaps between tracks, lead-in to the edge. */
+    background:
+      radial-gradient(circle closest-side,
+        transparent 0 33%,
+        #121010 33% 41%,
+        transparent 41% 55%,   #0e0d0d 55% 56.5%,
+        transparent 56.5% 68%, #0e0d0d 68% 69.5%,
+        transparent 69.5% 81%, #0e0d0d 81% 82.5%,
+        transparent 82.5% 96%,
+        #131111 96% 100%),
+      repeating-radial-gradient(circle closest-side,
+        rgba(255,255,255,0.035) 0 1px, transparent 1px 2px),
+      radial-gradient(circle closest-side, #171515 0%, #121111 70%, #0e0d0d 100%);
     position: relative;
     transition: box-shadow 0.4s;
     box-shadow: 0 0 0 1px #2a2020, 0 4px 30px rgba(0,0,0,0.9), 0 0 0 10px #0d0c0c;
@@ -153,6 +151,31 @@
   .platter.spinning {
     animation: spin 1.8s linear infinite;
     box-shadow: 0 0 0 1px #2a2020, 0 4px 30px rgba(0,0,0,0.9), 0 0 0 10px #0d0c0c, 0 0 20px rgba(200,134,42,0.12);
+  }
+
+  /* A studio light reflecting off the grooves. It lives outside .platter
+     so it doesn't rotate — the reflection holds still while the record
+     turns under it. Light from above-left, as on the rest of the faceplate.
+     The label is matte paper, so it's masked out. */
+  .sheen {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 200px; height: 200px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    pointer-events: none;
+    background: conic-gradient(from 0deg,
+      transparent 0deg 100deg,
+      rgba(255,238,210,0.07) 122deg,
+      rgba(255,238,210,0.11) 135deg,
+      rgba(255,238,210,0.07) 148deg,
+      transparent 170deg 280deg,
+      rgba(255,238,210,0.13) 302deg,
+      rgba(255,238,210,0.20) 315deg,
+      rgba(255,238,210,0.13) 328deg,
+      transparent 350deg 360deg);
+    -webkit-mask: radial-gradient(circle closest-side, transparent 0 34%, #000 36% 97%, transparent 100%);
+            mask: radial-gradient(circle closest-side, transparent 0 34%, #000 36% 97%, transparent 100%);
   }
 
   /* Center label */
@@ -228,11 +251,15 @@
     transform-origin: top center;
     transform: rotate(-6deg);
     border-radius: 2px;
+    /* On the base rule, so the arm glides both ways: onto the record, back
+       to its rest, and across to a new spot on seek. */
+    transition: transform 1.2s ease;
   }
 
+  /* --arm is set from playback progress: the stylus starts at the lead-in
+     and works inward toward the label as the track plays. */
   .arm-line.playing {
-    transform: rotate(15deg);
-    transition: transform 1.2s ease;
+    transform: rotate(var(--arm, 8.7deg));
   }
 
   .arm-head {
@@ -870,6 +897,7 @@
       </div>
       <div class="spindle"></div>
     </div>
+    <div class="sheen" aria-hidden="true"></div>
     <div class="tonearm-wrap">
       <div class="tonearm"></div>
       <div class="arm-line" id="armLine">
@@ -1633,14 +1661,33 @@ function avg(data, lo, hi) {
 }
 
 // ─── Clock / progress ─────────────────────────────────────
+// Tonearm angles for the outermost groove (lead-in, r≈94px) and the last
+// groove before the run-out (r≈42px), given where the pivot sits relative to
+// the platter. The grooves are evenly pitched, so radius falls linearly with
+// time; interpolating the angle linearly tracks that to within 0.3px.
+const ARM_LEAD_IN_DEG = 8.7;
+const ARM_RUN_OUT_DEG = 31;
+// Retargeting a CSS transition every frame restarts its easing from rest each
+// time, so the arm would crawl instead of glide. Only move it once it has
+// something to show — a quarter degree is ~0.6px at the stylus — so each
+// small step finishes before the next, and a seek is one clean glide.
+const ARM_STEP_DEG = 0.25;
+let armShown = null;
+
 function startClock() {
   cancelAnimationFrame(animFrame);  // likewise, one clock at a time
   function tick() {
     if (!isPlaying) return;
     const elapsed = audioCtx.currentTime - startedAt;
     const dur = audioBuffer.duration;
+    const frac = Math.min(elapsed / dur, 1);
     trackTime.textContent = `${formatTime(elapsed)} / ${formatTime(dur)}`;
-    progressFill.style.width = Math.min(elapsed / dur * 100, 100).toFixed(2) + '%';
+    progressFill.style.width = (frac * 100).toFixed(2) + '%';
+    const arm = ARM_LEAD_IN_DEG + (ARM_RUN_OUT_DEG - ARM_LEAD_IN_DEG) * frac;
+    if (armShown === null || Math.abs(arm - armShown) >= ARM_STEP_DEG) {
+      armLine.style.setProperty('--arm', arm.toFixed(2) + 'deg');
+      armShown = arm;
+    }
     animFrame = requestAnimationFrame(tick);
   }
   tick();
