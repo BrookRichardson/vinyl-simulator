@@ -1650,7 +1650,9 @@ fileInput.addEventListener('change', e => {
 
 // ─── Seek on progress bar click ──────────────────────────
 progressWrap.addEventListener('click', e => {
-  if (!audioBuffer) return;
+  // While a new file decodes, audioBuffer is still the old track; a seek now
+  // would carry the old track's offset into the new one.
+  if (!audioBuffer || playBtn.disabled) return;
   const rect = progressWrap.getBoundingClientRect();
   const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
   const seekTime = fraction * audioBuffer.duration;
