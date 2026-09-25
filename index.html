@@ -298,8 +298,16 @@
   /* === CONTROLS === */
   .controls {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    /* minmax(0, …) because a bare 1fr won't shrink below its content, and
+       at phone widths that pushed the right column past the panel edge and
+       made the whole page scroll sideways. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px 24px;
+  }
+
+  /* Two columns need about 440px of viewport; below that, stack them. */
+  @media (max-width: 480px) {
+    .controls { grid-template-columns: minmax(0, 1fr); }
   }
 
   .knob-group {
