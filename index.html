@@ -350,6 +350,53 @@
     background: rgba(200,134,42,0.04);
   }
 
+  .upload-zone { position: relative; }
+
+  /* The zone's contents ignore the pointer, so a drag crossing the text
+     doesn't fire dragleave and flicker the highlight — or the choice below. */
+  .upload-zone > * { pointer-events: none; }
+
+  /* With a track on, dragging files over splits the well in two: the half
+     you let go over decides whether they replace what's playing or join
+     the side after it. */
+  .drop-choice {
+    position: absolute;
+    inset: 0;
+    display: none;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .upload-zone.choosing .drop-choice { display: grid; }
+  .upload-zone.choosing > :not(.drop-choice) { visibility: hidden; }
+
+  .drop-half {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--dim);
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .drop-half + .drop-half { border-left: 1px dashed var(--ridge); }
+
+  .drop-half small {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: none;
+  }
+
+  .upload-zone[data-over="play"] .drop-half[data-action="play"],
+  .upload-zone[data-over="add"] .drop-half[data-action="add"] {
+    color: var(--amber);
+    background: rgba(200,134,42,0.08);
+  }
+
   .upload-zone input { display: none; }
 
   .upload-icon {
@@ -1059,6 +1106,10 @@
         Drop a track here, or several for a whole side
         <strong>or click to browse · MP3, WAV, FLAC, AAC</strong>
       </div>
+      <div class="drop-choice" aria-hidden="true">
+        <div class="drop-half" data-action="play">Play now<small>replaces what's playing</small></div>
+        <div class="drop-half" data-action="add">Add to side<small>plays after the last track</small></div>
+      </div>
     </div>
   </section>
 
@@ -1731,6 +1782,7 @@ const decodes = new Map();   // band index -> Promise<AudioBuffer>
 const AUDIO_EXT = /\.(mp3|wav|flac|ogg|oga|aac|m4a|opus|weba)$/i;
 const isAudio = f => (f.type && f.type.startsWith('audio/')) || AUDIO_EXT.test(f.name);
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+const audioFiles = list => [...list].filter(isAudio).sort(byName);   // in album order
 
 // "03 - Song.mp3" -> "Song": the band number already says where it sits.
 function bandTitle(name) {
@@ -1879,7 +1931,7 @@ function sidePosition(elapsed) {
 // rebuilt, so keyboard focus survives lengths arriving.
 function renderSide() {
   sidePanel.hidden = tracks.length < 2;
-  if (sidePanel.hidden) return;
+  if (sidePanel.hidden) { tracklist.replaceChildren(); return; }
   while (tracklist.children.length > tracks.length) tracklist.lastChild.remove();
   tracks.forEach((t, i) => {
     let row = tracklist.children[i];
@@ -2114,7 +2166,7 @@ dropzone.addEventListener('click', () => fileInput.click());
 // Choosing or dropping files puts a new record on: one file plays as before,
 // several become a side, in filename order.
 function putOnRecord(fileList) {
-  const files = [...fileList].filter(isAudio).sort(byName);
+  const files = audioFiles(fileList);
   if (!files.length) return;
   if (isPlaying) pausePlayback();
   pausedAt = 0;
@@ -2129,7 +2181,7 @@ fileInput.addEventListener('change', e => {
 
 addTracksBtn.addEventListener('click', () => addInput.click());
 addInput.addEventListener('change', e => {
-  const files = [...e.target.files].filter(isAudio).sort(byName);
+  const files = audioFiles(e.target.files);
   if (files.length) addToPlaylist(files);
   e.target.value = '';
 });
@@ -2237,12 +2289,36 @@ document.querySelectorAll('.info-btn').forEach(btn => {
   });
 });
 
-dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
-dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+// With a track on, the half of the zone a drag is over decides what the
+// drop does. With nothing on there's only one thing to do.
+function dropAction(e) {
+  if (!tracks.length) return 'play';
+  const r = dropzone.getBoundingClientRect();
+  return e.clientX - r.left > r.width / 2 ? 'add' : 'play';
+}
+
+function endDrag() {
+  dropzone.classList.remove('drag', 'choosing');
+  delete dropzone.dataset.over;
+}
+
+dropzone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropzone.classList.add('drag');
+  dropzone.classList.toggle('choosing', tracks.length > 0);
+  dropzone.dataset.over = dropAction(e);
+});
+dropzone.addEventListener('dragleave', endDrag);
 dropzone.addEventListener('drop', e => {
   e.preventDefault();
-  dropzone.classList.remove('drag');
-  putOnRecord(e.dataTransfer.files);
+  const action = dropAction(e);
+  endDrag();
+  if (action === 'add') {
+    const files = audioFiles(e.dataTransfer.files);
+    if (files.length) addToPlaylist(files);
+  } else {
+    putOnRecord(e.dataTransfer.files);
+  }
 });
 </script>
 </body>
