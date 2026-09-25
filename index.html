@@ -329,6 +329,7 @@
 
   /* === UPLOAD === */
   .upload-zone {
+    position: relative;
     border: 1px dashed var(--ridge);
     border-radius: 2px;
     padding: 20px;
@@ -350,8 +351,6 @@
     background: rgba(200,134,42,0.04);
   }
 
-  .upload-zone { position: relative; }
-
   /* The zone's contents ignore the pointer, so a drag crossing the text
      doesn't fire dragleave and flicker the highlight — or the choice below. */
   .upload-zone > * { pointer-events: none; }
@@ -366,8 +365,8 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .upload-zone.choosing .drop-choice { display: grid; }
-  .upload-zone.choosing > :not(.drop-choice) { visibility: hidden; }
+  .upload-zone[data-over] .drop-choice { display: grid; }
+  .upload-zone[data-over] > :not(.drop-choice) { visibility: hidden; }
 
   .drop-half {
     display: flex;
@@ -1742,11 +1741,7 @@ async function trackEnded() {
     return;
   }
   if (seq !== loadSeq || !isPlaying) return;
-  current = next;
-  audioBuffer = buf;
-  setScale(audioBuffer.duration);
-  showTrack(tracks[current]);
-  renderSide();
+  setBand(next, buf);
   startMusic(-Math.max(0, BAND_GAP_S - (audioCtx.currentTime - endedAt)));
   prepareNext();
 }
@@ -1755,12 +1750,10 @@ async function trackEnded() {
 // the start of the side ready to play again.
 function endOfSide() {
   stopPlayback();
-  if (tracks.length > 1) loadTrack(0, { autoplay: false });
+  if (current !== 0) loadTrack(0, { autoplay: false });
 }
 
 // ─── Load audio file ──────────────────────────────────────
-let loadSeq = 0;   // see loadTrack
-
 function ensureContext() {
   if (audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1798,16 +1791,17 @@ function setPlaylist(files) {
   tracks = toTracks(files);
   current = 0;
   decodes.clear();
-  tracks.forEach(readDuration);
-  renderSide();
+  // A lone file's length comes from decoding it, which starts at once.
+  if (tracks.length > 1) tracks.forEach(readDuration);
 }
 
-function addToPlaylist(files) {
-  const added = toTracks(files);
+function addToPlaylist(fileList) {
+  const added = toTracks(audioFiles(fileList));
+  if (!added.length) return;
   tracks.push(...added);
   added.forEach(readDuration);
   renderSide();
-  if (audioCtx) prepareNext();   // the new first band may now be up next
+  if (isPlaying) prepareNext();   // the new first band may now be up next
 }
 
 // The tracklist wants every length up front, but decoding a file to learn
@@ -1817,15 +1811,23 @@ function readDuration(track) {
   try {
     const url = URL.createObjectURL(track.file);
     const probe = new Audio();
+    // An audio element keeps a media player running until it's collected;
+    // with a long side that's dozens at once. Shut it down when done.
+    const done = () => {
+      probe.onloadedmetadata = probe.onerror = null;
+      probe.removeAttribute('src');
+      probe.load();
+      URL.revokeObjectURL(url);
+    };
     probe.preload = 'metadata';
     probe.onloadedmetadata = () => {
       if (track.duration === null && isFinite(probe.duration)) {
         track.duration = probe.duration;
         renderSide();
       }
-      URL.revokeObjectURL(url);
+      done();
     };
-    probe.onerror = () => URL.revokeObjectURL(url);
+    probe.onerror = done;
     probe.src = url;
   } catch (e) { /* the decoded length will fill it in */ }
 }
@@ -1844,8 +1846,13 @@ function decodeTrack(i) {
   return decodes.get(i);
 }
 
+function keepDecoded(i) {
+  for (const k of [...decodes.keys()]) if (k !== i && k !== i + 1) decodes.delete(k);
+}
+
+// Called once music is running: decode the band after this one.
 function prepareNext() {
-  for (const k of [...decodes.keys()]) if (k !== current && k !== current + 1) decodes.delete(k);
+  keepDecoded(current);
   if (current + 1 < tracks.length) decodeTrack(current + 1).catch(() => {});
 }
 
@@ -1856,6 +1863,20 @@ function setScale(duration) {
   progressWrap.style.setProperty('--tick', (every / duration * 100) + '%');
 }
 
+// The needle is on band i and its audio is ready.
+function setBand(i, buf) {
+  current = i;
+  audioBuffer = buf;
+  setScale(buf.duration);
+  showTrack(tracks[i]);
+  renderSide();
+}
+
+function resetClock() {
+  progressFill.style.width = '0%';
+  trackTime.textContent = `00:00 / ${formatTime(audioBuffer.duration)}`;
+}
+
 function showTrack(t) {
   trackName.textContent = t.file.name;
   labelText.textContent = t.file.name.replace(/\.[^.]+$/, '');
@@ -1864,10 +1885,13 @@ function showTrack(t) {
 // Loads can overlap — a big file then a small one decodes the small one
 // first. Each load takes a number, and after every await it carries on only
 // if no newer load has begun, so the last file chosen is the one that plays.
+let loadSeq = 0;
+
 async function loadTrack(i, { autoplay = true } = {}) {
   const seq = ++loadSeq;
   const superseded = () => seq !== loadSeq;
   current = i;
+  keepDecoded(i);   // a superseded load's decode is let go as soon as it lands
   if (autoplay) setStatus('Loading…', false);
   showTrack(tracks[i]);
   playBtn.disabled = true;
@@ -1877,12 +1901,9 @@ async function loadTrack(i, { autoplay = true } = {}) {
     ensureContext();
     const decoded = await decodeTrack(i);
     if (superseded()) return;
-    audioBuffer = decoded;
-    setScale(audioBuffer.duration);
+    setBand(i, decoded);
     playBtn.disabled = false;
-    progressFill.style.width = '0%';
-    trackTime.textContent = `00:00 / ${formatTime(audioBuffer.duration)}`;
-    prepareNext();
+    resetClock();
     if (!autoplay) return;
     setStatus('Ready', false);
 
@@ -1900,11 +1921,6 @@ async function loadTrack(i, { autoplay = true } = {}) {
   }
 }
 
-function loadFile(file) {
-  setPlaylist([file]);
-  return loadTrack(0);
-}
-
 // Put the needle on a band, as if lowering it by hand.
 function cueTrack(i) {
   if (isPlaying) pausePlayback();
@@ -1912,18 +1928,19 @@ function cueTrack(i) {
   loadTrack(i);
 }
 
-// Where the needle is across the whole side, 0-1 — or null while any band's
-// length is still unknown. `elapsed` runs negative through the silent band
-// before a track.
+// Where the needle is across the whole side, 0-1. `elapsed` runs negative
+// through the silent band before a track. A band whose length isn't known
+// yet counts as the average of those that are — and the band playing is
+// always known, having been decoded.
 function sidePosition(elapsed) {
-  if (!tracks.length) return null;
+  const known = tracks.map(t => t.duration).filter(d => d != null);
+  const guess = known.reduce((a, b) => a + b, 0) / known.length;
   let before = 0, total = 0;
-  for (let j = 0; j < tracks.length; j++) {
-    const d = tracks[j].duration;
-    if (d == null) return null;
+  tracks.forEach((t, j) => {
+    const d = t.duration ?? guess;
     if (j < current) before += d + BAND_GAP_S;
     total += d + (j ? BAND_GAP_S : 0);
-  }
+  });
   return Math.min(Math.max((before + elapsed) / total, 0), 1);
 }
 
@@ -1968,6 +1985,7 @@ function startPlayback() {
   if (isPlaying) stopSources();
   buildGraph();
   startMusic(pausedAt);
+  prepareNext();
 
   setTransportUI(true);
   setStatus('Playing', true);
@@ -2072,11 +2090,11 @@ function stopPlayback() {
   // The music has ended by itself, but the noise layers loop and the
   // oscillators run until told otherwise.
   stopSources();
+  sourceNode = null;   // an ended source still holds its track's decoded audio
   pausedAt = 0;
   setTransportUI(false);
   setStatus('Finished', false);
-  progressFill.style.width = '0%';
-  trackTime.textContent = `00:00 / ${formatTime(audioBuffer.duration)}`;
+  resetClock();
 }
 
 playBtn.addEventListener('click', () => {
@@ -2138,7 +2156,7 @@ function startClock() {
     trackTime.textContent = `${formatTime(played)} / ${formatTime(dur)}`;
     progressFill.style.width = (frac * 100).toFixed(2) + '%';
     // The arm crosses the whole side, not each track.
-    const side = sidePosition(Math.min(elapsed, dur)) ?? frac;
+    const side = sidePosition(Math.min(elapsed, dur));
     const arm = ARM_LEAD_IN_DEG + (ARM_RUN_OUT_DEG - ARM_LEAD_IN_DEG) * side;
     if (armShown === null || Math.abs(arm - armShown) >= ARM_STEP_DEG) {
       armLine.style.setProperty('--arm', arm.toFixed(2) + 'deg');
@@ -2168,10 +2186,8 @@ dropzone.addEventListener('click', () => fileInput.click());
 function putOnRecord(fileList) {
   const files = audioFiles(fileList);
   if (!files.length) return;
-  if (isPlaying) pausePlayback();
-  pausedAt = 0;
   setPlaylist(files);
-  loadTrack(0);
+  cueTrack(0);
 }
 
 fileInput.addEventListener('change', e => {
@@ -2181,8 +2197,7 @@ fileInput.addEventListener('change', e => {
 
 addTracksBtn.addEventListener('click', () => addInput.click());
 addInput.addEventListener('change', e => {
-  const files = audioFiles(e.target.files);
-  if (files.length) addToPlaylist(files);
+  addToPlaylist(e.target.files);
   e.target.value = '';
 });
 
@@ -2291,34 +2306,31 @@ document.querySelectorAll('.info-btn').forEach(btn => {
 
 // With a track on, the half of the zone a drag is over decides what the
 // drop does. With nothing on there's only one thing to do.
+const recordOn = () => tracks.length > 0;
+
 function dropAction(e) {
-  if (!tracks.length) return 'play';
+  if (!recordOn()) return 'play';
   const r = dropzone.getBoundingClientRect();
   return e.clientX - r.left > r.width / 2 ? 'add' : 'play';
 }
 
 function endDrag() {
-  dropzone.classList.remove('drag', 'choosing');
+  dropzone.classList.remove('drag');
   delete dropzone.dataset.over;
 }
 
 dropzone.addEventListener('dragover', e => {
   e.preventDefault();
   dropzone.classList.add('drag');
-  dropzone.classList.toggle('choosing', tracks.length > 0);
-  dropzone.dataset.over = dropAction(e);
+  if (recordOn()) dropzone.dataset.over = dropAction(e);
 });
 dropzone.addEventListener('dragleave', endDrag);
 dropzone.addEventListener('drop', e => {
   e.preventDefault();
   const action = dropAction(e);
   endDrag();
-  if (action === 'add') {
-    const files = audioFiles(e.dataTransfer.files);
-    if (files.length) addToPlaylist(files);
-  } else {
-    putOnRecord(e.dataTransfer.files);
-  }
+  if (action === 'add') addToPlaylist(e.dataTransfer.files);
+  else putOnRecord(e.dataTransfer.files);
 });
 </script>
 </body>
