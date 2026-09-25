@@ -313,6 +313,13 @@
   @container (max-width: 390px) {
     .controls { grid-template-columns: minmax(0, 1fr); }
   }
+  /* Browsers without container queries: the same break as a viewport width
+     (390px of panel is a 480px screen). */
+  @supports not (container-type: inline-size) {
+    @media (max-width: 480px) {
+      .controls { grid-template-columns: minmax(0, 1fr); }
+    }
+  }
 
   .knob-group {
     display: flex;
