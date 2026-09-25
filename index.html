@@ -79,7 +79,6 @@
   /* The platter spin, the lamp pulse and the tonearm sweep are all decorative
      — the status text and the play button already say what is happening. */
   @media (prefers-reduced-motion: reduce) {
-    .platter.spinning { animation: none; }
     .status-dot.active { animation: none; }
     .arm-line { transition: none; }
     *, *::before, *::after {
@@ -148,8 +147,9 @@
     flex-shrink: 0;
   }
 
+  /* The spin itself is driven from script (see "Platter spin"); this is the
+     motor-on glow. */
   .platter.spinning {
-    animation: spin 1.8s linear infinite;
     box-shadow: 0 0 0 1px #2a2020, 0 4px 30px rgba(0,0,0,0.9), 0 0 0 10px #0d0c0c, 0 0 20px rgba(200,134,42,0.12);
   }
 
@@ -325,11 +325,6 @@
     margin-left: -1.5px;
     border-radius: 50%;
     background: var(--needle);
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
   }
 
   /* === UPLOAD === */
@@ -1299,6 +1294,10 @@ function recallPreset(p) {
   });
 }
 
+function prefersReducedMotion() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
 function applyPreset(name, animate = true) {
   const p = PRESETS[name];
   if (!p) return;
@@ -1308,10 +1307,7 @@ function applyPreset(name, animate = true) {
     btn.classList.toggle('active', btn.dataset.preset === name);
   });
 
-  const reduceMotion = window.matchMedia
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  if (animate && !reduceMotion) {
+  if (animate && !prefersReducedMotion()) {
     recallPreset(p);
   } else {
     if (recallFrame) { cancelAnimationFrame(recallFrame); recallFrame = null; }
@@ -1634,11 +1630,65 @@ function startPlayback() {
   startClock();
 }
 
+// ─── Platter spin ─────────────────────────────────────────
+// The record doesn't stop dead: the motor lets go and it winds down, coming
+// to rest with the label upright. The arm lifts on its own timing meanwhile.
+const SPIN_DEG_PER_S = 360 / 1.8;   // 33 1/3 rpm
+let spin = null;                     // the steady spin, while playing
+let windDown = null;                 // the running wind-down animation, if any
+
+// A new animation normally waits for the next frame to begin, which holds
+// the record still for a frame at every hand-over. Pinning its start to the
+// current frame makes it carry on from exactly where the last one was.
+function beginNow(anim, alreadyMs = 0) {
+  anim.startTime = document.timeline.currentTime - alreadyMs;
+  return anim;
+}
+
+function platterAngle() {
+  const t = getComputedStyle(platter).transform;
+  if (!t || t === 'none') return 0;
+  const m = new DOMMatrix(t);
+  return (Math.atan2(m.b, m.a) * 180 / Math.PI + 360) % 360;
+}
+
+function startSpin() {
+  // Pick up from wherever the record is — mid wind-down, or mid-turn when a
+  // seek pauses and plays in the same moment — rather than snapping upright.
+  const from = platterAngle();
+  if (windDown) { windDown.cancel(); windDown = null; }
+  if (spin) { spin.cancel(); spin = null; }
+  platter.classList.add('spinning');
+  if (prefersReducedMotion()) return;
+  spin = beginNow(platter.animate(
+    [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }],
+    { duration: 360 / SPIN_DEG_PER_S * 1000, iterations: Infinity }),
+    from / SPIN_DEG_PER_S * 1000);
+}
+
+function stopSpin() {
+  if (!platter.classList.contains('spinning')) return;
+  const from = platterAngle();
+  platter.classList.remove('spinning');
+  if (spin) { spin.cancel(); spin = null; }
+  if (prefersReducedMotion()) return;
+  // Coast on to the next upright position, at least half a turn away so the
+  // stop never looks abrupt. Slowing at a constant rate from full speed,
+  // covering that distance takes twice as long as it would at full speed;
+  // the easing is exactly that curve, so the hand-over has no hitch.
+  let dist = (360 - from) % 360;
+  if (dist < 180) dist += 360;
+  windDown = beginNow(platter.animate(
+    [{ transform: `rotate(${from}deg)` }, { transform: `rotate(${from + dist}deg)` }],
+    { duration: 2 * dist / SPIN_DEG_PER_S * 1000, easing: 'cubic-bezier(0.333, 0.667, 0.667, 1)' }));
+  windDown.onfinish = () => { windDown = null; };
+}
+
 // The platter, tonearm, play button and meters all reflect one fact, so one
 // place decides what they show.
 function setTransportUI(playing) {
   isPlaying = playing;
-  platter.classList.toggle('spinning', playing);
+  playing ? startSpin() : stopSpin();
   armLine.classList.toggle('playing', playing);
   playBtn.classList.toggle('playing', playing);
   playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
