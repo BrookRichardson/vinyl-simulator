@@ -296,17 +296,21 @@
   }
 
   /* === CONTROLS === */
+  /* The breakpoint below measures the panel itself rather than the screen,
+     so it doesn't drift if the padding around the panel changes. */
+  .panel { container-type: inline-size; }
+
   .controls {
     display: grid;
-    /* minmax(0, …) because a bare 1fr won't shrink below its content, and
-       at phone widths that pushed the right column past the panel edge and
-       made the whole page scroll sideways. */
+    /* minmax(0, …) so a column can shrink below its content instead of
+       pushing past the panel edge. */
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px 24px;
   }
 
-  /* Two columns need about 440px of viewport; below that, stack them. */
-  @media (max-width: 480px) {
+  /* Two columns of labels like "STYLUS RESONANCE ? 100%" need ~350px of
+     panel; stack them below 390px to leave some slack. */
+  @container (max-width: 390px) {
     .controls { grid-template-columns: minmax(0, 1fr); }
   }
 
@@ -1573,9 +1577,7 @@ playBtn.addEventListener('click', () => {
 
 // ─── VU meter ─────────────────────────────────────────────
 function startVU() {
-  // Starting a meter replaces any meter already running — seeking during
-  // playback calls this again without a pause in between.
-  cancelAnimationFrame(vuFrame);
+  cancelAnimationFrame(vuFrame);   // starting a meter replaces any running one
   const data = new Uint8Array(analyser.frequencyBinCount);
   function tick() {
     analyser.getByteFrequencyData(data);
@@ -1600,7 +1602,7 @@ function avg(data, lo, hi) {
 
 // ─── Clock / progress ─────────────────────────────────────
 function startClock() {
-  cancelAnimationFrame(animFrame);   // likewise: one clock at a time
+  cancelAnimationFrame(animFrame);  // likewise, one clock at a time
   function tick() {
     if (!isPlaying) return;
     const elapsed = audioCtx.currentTime - startedAt;
@@ -1641,12 +1643,14 @@ progressWrap.addEventListener('click', e => {
   const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
   const seekTime = fraction * audioBuffer.duration;
 
-  if (isPlaying) {
-    stopSources();
-    pausedAt = seekTime;
+  // Seeking while playing is a pause and a play at the new spot, so it gets
+  // exactly the teardown pause does. Both run in one task, so nothing flickers.
+  const wasPlaying = isPlaying;
+  if (wasPlaying) pausePlayback();
+  pausedAt = seekTime;
+  if (wasPlaying) {
     startPlayback();
   } else {
-    pausedAt = seekTime;
     progressFill.style.width = (fraction * 100).toFixed(2) + '%';
     trackTime.textContent = `${formatTime(seekTime)} / ${formatTime(audioBuffer.duration)}`;
   }
