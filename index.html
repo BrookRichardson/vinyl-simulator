@@ -937,13 +937,15 @@
   /* Picked up: lifted off the sleeve, following the pointer. */
   .band.lifted {
     z-index: 1;
-    pointer-events: none;   /* letting go lands on the list, not a click on the band */
     transition: none;
     background: var(--surface);
     box-shadow: 0 6px 14px rgba(0,0,0,0.55), 0 0 0 1px var(--ridge);
-    cursor: grabbing;
   }
-  .tracklist.arranging, .tracklist.arranging .track { cursor: grabbing; }
+  /* While a band is carried no row takes the pointer: letting go lands on
+     the list, not a click on a band, and the rows it passes don't light up
+     or change the cursor. */
+  .tracklist.arranging { cursor: grabbing; }
+  .tracklist.arranging .band { pointer-events: none; }
   .tracklist.settling .band { transition: none; }
 
   /* Where dropped files will go. */
@@ -1944,6 +1946,9 @@ function rearrange(change) {
 }
 
 function insertTracks(fileList, at) {
+  // The record may have come off while a drop or folder was being read:
+  // there's no side to add to, so these make a new one.
+  if (!recordOn()) { putOnRecord(fileList); return; }
   const added = toTracks(audioFiles(fileList));
   if (!added.length) return;
   rearrange(() => tracks.splice(Math.min(at, tracks.length), 0, ...added));
@@ -1976,6 +1981,7 @@ function removeTrack(i) {
 // player, so they're read a few at a time, and a band taken off the side
 // before its turn isn't read at all.
 const PROBES_AT_ONCE = 4;
+const PROBE_GIVE_UP_MS = 10000;   // one that never answers mustn't hold its place
 const probeQueue = [];
 let probing = 0;
 
@@ -2006,6 +2012,7 @@ function probeDuration(track, finished) {
     // An audio element keeps a media player running until it's collected;
     // with a long side that's dozens at once. Shut it down when done.
     const done = () => {
+      clearTimeout(giveUp);
       probe.onloadedmetadata = probe.onerror = null;
       probe.removeAttribute('src');
       probe.load();
@@ -2021,6 +2028,7 @@ function probeDuration(track, finished) {
       done();
     };
     probe.onerror = done;
+    const giveUp = setTimeout(done, PROBE_GIVE_UP_MS);
     probe.src = url;
   } catch (e) { finished(); /* the decoded length will fill it in */ }
 }
@@ -2436,17 +2444,21 @@ async function chooseFolder() {
   takeFiles(files);
 }
 
-// Everything in a folder is read at once, sub-folders included.
+// Everything in a folder is read at once, sub-folders included. A folder
+// that can't be listed, like a file that can't be read, is left off the side
+// rather than losing the rest.
 async function readFolder(dir, at, files) {
   const reads = [];
-  for await (const handle of dir.values()) {
-    const path = at + '/' + handle.name;
-    if (handle.kind === 'directory') reads.push(readFolder(handle, path, files));
-    else if (!handle.name.startsWith('.')) {
-      reads.push(handle.getFile().then(file => found(files, file, path),
-        () => { /* unreadable: leave it off the side */ }));
+  try {
+    for await (const handle of dir.values()) {
+      const path = at + '/' + handle.name;
+      if (handle.kind === 'directory') reads.push(readFolder(handle, path, files));
+      else if (!handle.name.startsWith('.')) {
+        reads.push(handle.getFile().then(file => found(files, file, path),
+          () => { /* unreadable: leave it off the side */ }));
+      }
     }
-  }
+  } catch { /* unlistable: leave it off the side */ }
   await Promise.all(reads);
 }
 
@@ -2640,12 +2652,12 @@ async function droppedFiles(dt) {
     .filter(entry => entry && entry.isDirectory);
   if (!folders.length) return loose;
   loose.forEach(f => folderPaths.set(f, '/' + f.name));   // sorts among the folders
-  const found = [], unread = [];
-  await Promise.all(folders.map(entry => walkEntry(entry, found, unread)));
-  if (unread.length && !found.length) {
+  const inFolders = [], unread = [];
+  await Promise.all(folders.map(entry => walkEntry(entry, inFolders, unread)));
+  if (unread.length && !inFolders.length) {
     setStatus("Can't read a dropped folder here — try Choose a folder", false);
   }
-  return [...loose, ...found];
+  return [...loose, ...inFolders];
 }
 
 async function walkEntry(entry, files, unread) {
@@ -2684,7 +2696,9 @@ function removeFromSide(i) {
   removeTrack(i);
   const row = tracklist.children[Math.min(i, tracks.length - 1)];
   if (row) row.querySelector('.track-remove').focus();
-  else playBtn.focus();
+  // The side has gone. Play can't take focus while the band it fell back on
+  // loads, so the way to add more does.
+  else (playBtn.disabled ? filesBtn : playBtn).focus();
 }
 
 // Alt+Up / Alt+Down carries the focused band up or down the side.
