@@ -2738,8 +2738,13 @@ document.addEventListener('pointermove', e => {
   // It travels the length of the side, no further.
   dy = Math.min(Math.max(dy, d.mids[0] - d.mids[d.from]), d.mids[d.mids.length - 1] - d.mids[d.from]);
   d.row.style.transform = `translateY(${dy}px)`;
+  // It passes a row once its centre reaches that row's: going down, the rows
+  // below; going up, the rows above. Reaching counts, so a band held against
+  // either end of the side, where it stops, lands there.
   const centre = d.mids[d.from] + dy;
-  d.to = d.mids.filter((m, j) => j !== d.from && m < centre).length;
+  const below = d.mids.filter((m, j) => j > d.from && centre >= m).length;
+  const above = d.mids.filter((m, j) => j < d.from && centre <= m).length;
+  d.to = d.from + below - above;
   d.rows.forEach((r, j) => {
     if (j === d.from) return;
     const shift = (j > d.from && j <= d.to) ? -d.pitch : (j >= d.to && j < d.from) ? d.pitch : 0;
