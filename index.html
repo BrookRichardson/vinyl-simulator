@@ -351,8 +351,9 @@
     background: rgba(200,134,42,0.04);
   }
 
-  /* The zone's contents ignore the pointer, so a drag crossing the text
-     doesn't fire dragleave and flicker the highlight — or the choice below. */
+  /* The zone's contents ignore the pointer (bar its two buttons), so a drag
+     crossing the text doesn't fire dragleave and flicker the highlight, or
+     the choice below. */
   .upload-zone > * { pointer-events: none; }
 
   /* With a track on, dragging files over splits the well in two: the half
@@ -411,11 +412,49 @@
     color: var(--dim);
   }
 
-  .upload-label strong {
-    color: var(--amber);
+  .upload-label small {
     display: block;
     margin-top: 4px;
-    font-size: 0.8rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+  }
+
+  .upload-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  /* Hardware buttons, like the presets: the only things in the well that
+     take the pointer, so they can be pressed. */
+  .upload-btn {
+    pointer-events: auto;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: rgba(200,134,42,0.04);
+    border: 1px solid var(--ridge);
+    border-radius: 2px;
+    color: var(--amber);
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.12s, transform 0.08s;
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.5),
+      inset 0 1px 0 rgba(232,213,170,0.08);
+  }
+
+  .upload-btn:hover {
+    border-color: var(--amber);
+    background: rgba(200,134,42,0.1);
+  }
+
+  .upload-btn:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
   }
 
   /* === CONTROLS === */
@@ -1179,15 +1218,21 @@
       <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac" multiple>
       <div class="upload-icon">♫</div>
       <div class="upload-label">
-        Drop a track here, or several, or a whole folder
-        <strong>or click to browse · MP3, WAV, FLAC, AAC</strong>
+        Drop tracks or a whole folder here
+        <small>MP3 · WAV · FLAC · AAC</small>
+      </div>
+      <!-- A browser's file dialog picks files or a folder, never either, so
+           each has its own button: pressing Open on a folder in the files
+           dialog only goes into it. -->
+      <div class="upload-buttons">
+        <button type="button" class="upload-btn" id="filesBtn">Choose files</button>
+        <button type="button" class="upload-btn" id="folderBtn">Choose a folder</button>
       </div>
       <div class="drop-choice" aria-hidden="true">
         <div class="drop-half" data-action="play">Play now<small>replaces what's playing</small></div>
         <div class="drop-half" data-action="add">Add to side<small>plays after the last track</small></div>
       </div>
     </div>
-    <button type="button" class="add-tracks" id="folderBtn">Choose a folder…</button>
     <input type="file" id="folderInput" webkitdirectory multiple hidden>
   </section>
 
@@ -1387,6 +1432,7 @@ const sidePanel  = document.getElementById('sidePanel');
 const tracklist  = document.getElementById('tracklist');
 const addTracksBtn = document.getElementById('addTracksBtn');
 const addInput   = document.getElementById('addInput');
+const filesBtn   = document.getElementById('filesBtn');
 const folderBtn  = document.getElementById('folderBtn');
 const folderInput = document.getElementById('folderInput');
 const addFolderBtn = document.getElementById('addFolderBtn');
@@ -2349,7 +2395,8 @@ addInput.addEventListener('change', e => {
 
 // The browser's folder picker takes one folder, with everything under it:
 // to put several albums on, choose the folder that holds them.
-folderBtn.addEventListener('click', () => folderInput.click());
+filesBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+folderBtn.addEventListener('click', e => { e.stopPropagation(); folderInput.click(); });
 folderInput.addEventListener('change', e => {
   putOnRecord(e.target.files);
   e.target.value = '';
@@ -2483,7 +2530,10 @@ dropzone.addEventListener('dragover', e => {
   dropzone.classList.add('drag');
   if (recordOn()) dropzone.dataset.over = dropAction(e);
 });
-dropzone.addEventListener('dragleave', endDrag);
+dropzone.addEventListener('dragleave', e => {
+  // Crossing onto a button is still inside the zone.
+  if (!dropzone.contains(e.relatedTarget)) endDrag();
+});
 dropzone.addEventListener('drop', async e => {
   e.preventDefault();
   const action = dropAction(e);
