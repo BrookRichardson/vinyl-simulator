@@ -1102,7 +1102,7 @@
       <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac" multiple>
       <div class="upload-icon">♫</div>
       <div class="upload-label">
-        Drop a track here, or several for a whole side
+        Drop a track here, or several, or a whole folder
         <strong>or click to browse · MP3, WAV, FLAC, AAC</strong>
       </div>
       <div class="drop-choice" aria-hidden="true">
@@ -1110,6 +1110,8 @@
         <div class="drop-half" data-action="add">Add to side<small>plays after the last track</small></div>
       </div>
     </div>
+    <button type="button" class="add-tracks" id="folderBtn">Choose a folder…</button>
+    <input type="file" id="folderInput" webkitdirectory multiple hidden>
   </section>
 
   <!-- Playback -->
@@ -1161,7 +1163,9 @@
     <h2 class="section-head">Side A</h2>
     <ol class="tracklist" id="tracklist"></ol>
     <button type="button" class="add-tracks" id="addTracksBtn">+ Add tracks</button>
+    <button type="button" class="add-tracks" id="addFolderBtn">+ Add folder</button>
     <input type="file" id="addInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac" multiple hidden>
+    <input type="file" id="addFolderInput" webkitdirectory multiple hidden>
   </section>
 
   <!-- Presets -->
@@ -1306,6 +1310,10 @@ const sidePanel  = document.getElementById('sidePanel');
 const tracklist  = document.getElementById('tracklist');
 const addTracksBtn = document.getElementById('addTracksBtn');
 const addInput   = document.getElementById('addInput');
+const folderBtn  = document.getElementById('folderBtn');
+const folderInput = document.getElementById('folderInput');
+const addFolderBtn = document.getElementById('addFolderBtn');
+const addFolderInput = document.getElementById('addFolderInput');
 const volumeEl   = document.getElementById('volume');
 const volumeVal  = document.getElementById('volumeVal');
 const volumeRow  = document.getElementById('volumeRow');
@@ -1773,9 +1781,16 @@ let current = 0;             // the band the needle is on
 const decodes = new Map();   // band index -> Promise<AudioBuffer>
 
 const AUDIO_EXT = /\.(mp3|wav|flac|ogg|oga|aac|m4a|opus|weba)$/i;
-const isAudio = f => (f.type && f.type.startsWith('audio/')) || AUDIO_EXT.test(f.name);
-const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-const audioFiles = list => [...list].filter(isAudio).sort(byName);   // in album order
+// Dot-files are skipped: macOS leaves "._01 Song.mp3" shadows beside the
+// real ones, which look like audio by name but aren't.
+const isAudio = f => !f.name.startsWith('.') &&
+  ((f.type && f.type.startsWith('audio/')) || AUDIO_EXT.test(f.name));
+// Files from a folder carry their path within it, so several albums sort
+// album by album, each in track order.
+const dropPaths = new WeakMap();   // dropped File -> its path in the folder
+const pathOf = f => dropPaths.get(f) || f.webkitRelativePath || f.name;
+const byPath = (a, b) => pathOf(a).localeCompare(pathOf(b), undefined, { numeric: true, sensitivity: 'base' });
+const audioFiles = list => [...list].filter(isAudio).sort(byPath);   // in album order
 
 // "03 - Song.mp3" -> "Song": the band number already says where it sits.
 function bandTitle(name) {
@@ -2201,6 +2216,19 @@ addInput.addEventListener('change', e => {
   e.target.value = '';
 });
 
+// The browser's folder picker takes one folder, with everything under it:
+// to put several albums on, choose the folder that holds them.
+folderBtn.addEventListener('click', () => folderInput.click());
+folderInput.addEventListener('change', e => {
+  putOnRecord(e.target.files);
+  e.target.value = '';
+});
+addFolderBtn.addEventListener('click', () => addFolderInput.click());
+addFolderInput.addEventListener('change', e => {
+  addToPlaylist(e.target.files);
+  e.target.value = '';
+});
+
 // ─── Seek on progress bar click ──────────────────────────
 progressWrap.addEventListener('click', e => {
   // While a new file decodes, audioBuffer is still the old track; a seek now
@@ -2325,13 +2353,45 @@ dropzone.addEventListener('dragover', e => {
   if (recordOn()) dropzone.dataset.over = dropAction(e);
 });
 dropzone.addEventListener('dragleave', endDrag);
-dropzone.addEventListener('drop', e => {
+dropzone.addEventListener('drop', async e => {
   e.preventDefault();
   const action = dropAction(e);
   endDrag();
-  if (action === 'add') addToPlaylist(e.dataTransfer.files);
-  else putOnRecord(e.dataTransfer.files);
+  const files = await droppedFiles(e.dataTransfer);
+  if (action === 'add') addToPlaylist(files);
+  else putOnRecord(files);
 });
+
+// A drop's file list holds a dropped folder as one empty entry; its
+// contents have to be walked. The entries must be taken during the drop
+// event itself — the browser empties the drag data once it returns.
+async function droppedFiles(dt) {
+  const entries = [...(dt.items || [])]
+    .map(item => item.webkitGetAsEntry && item.webkitGetAsEntry())
+    .filter(Boolean);
+  if (!entries.length) return [...dt.files];
+  const files = [];
+  await Promise.all(entries.map(entry => walkEntry(entry, files)));
+  return files;
+}
+
+async function walkEntry(entry, files) {
+  if (entry.isFile) {
+    try {
+      const file = await new Promise((ok, fail) => entry.file(ok, fail));
+      dropPaths.set(file, entry.fullPath);
+      files.push(file);
+    } catch { /* unreadable: leave it off the side */ }
+  } else if (entry.isDirectory) {
+    // A directory reader hands back its entries a batch at a time.
+    const reader = entry.createReader();
+    let batch;
+    do {
+      batch = await new Promise(ok => reader.readEntries(ok, () => ok([])));
+      await Promise.all(batch.map(child => walkEntry(child, files)));
+    } while (batch.length);
+  }
+}
 </script>
 </body>
 </html>
