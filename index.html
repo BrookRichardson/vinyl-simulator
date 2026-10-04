@@ -427,36 +427,6 @@
     margin-top: 14px;
   }
 
-  /* Hardware buttons, like the presets: the only things in the well that
-     take the pointer, so they can be pressed. */
-  .upload-btn {
-    pointer-events: auto;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.75rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    background: rgba(200,134,42,0.04);
-    border: 1px solid var(--ridge);
-    border-radius: 2px;
-    color: var(--amber);
-    padding: 6px 14px;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s, box-shadow 0.12s, transform 0.08s;
-    box-shadow:
-      0 1px 2px rgba(0,0,0,0.5),
-      inset 0 1px 0 rgba(232,213,170,0.08);
-  }
-
-  .upload-btn:hover {
-    border-color: var(--amber);
-    background: rgba(200,134,42,0.1);
-  }
-
-  .upload-btn:active {
-    transform: translateY(1px);
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
-  }
-
   /* === CONTROLS === */
   /* The breakpoint below measures the panel itself rather than the screen,
      so it doesn't drift if the padding around the panel changes. */
@@ -967,6 +937,7 @@
   /* Picked up: lifted off the sleeve, following the pointer. */
   .band.lifted {
     z-index: 1;
+    pointer-events: none;   /* letting go lands on the list, not a click on the band */
     transition: none;
     background: var(--surface);
     box-shadow: 0 6px 14px rgba(0,0,0,0.55), 0 0 0 1px var(--ridge);
@@ -1017,16 +988,13 @@
   .track-remove:active { transform: translateY(1px); }
 
   /* Keyboard focus shows them too; a click's focus doesn't, or they'd stay
-     up on the last row clicked. */
-  .band:hover .band-grip, .band:has(:focus-visible) .band-grip,
-  .band:hover .track-remove, .band:has(:focus-visible) .track-remove,
+     up on the last row clicked. While a band is carried, only its grip shows. */
+  .tracklist:not(.arranging) .band:is(:hover, :has(:focus-visible)) :is(.band-grip, .track-remove),
   .band.lifted .band-grip { opacity: 1; }
-  .tracklist.arranging .band:not(.lifted) .band-grip,
-  .tracklist.arranging .track-remove { opacity: 0; }
 
   /* No hover on a touchscreen: keep them in view, quietly. */
   @media (hover: none) {
-    .band-grip, .track-remove { opacity: 0.7; }
+    .tracklist:not(.arranging) :is(.band-grip, .track-remove) { opacity: 0.7; }
   }
 
   .track {
@@ -1100,8 +1068,7 @@
   }
 
   .add-tracks:hover { color: var(--cream); }
-  .add-tracks[hidden] { display: none; }
-  .record-off { display: block; margin-left: auto; }
+  .record-off:not([hidden]) { display: block; margin-left: auto; }
   .add-tracks:active { transform: translateY(1px); }
 
   /* === PRESETS === */
@@ -1149,7 +1116,8 @@
     gap: 6px;
   }
 
-  .preset-btn {
+  /* The source well's buttons (.upload-btn) are built the same way. */
+  .preset-btn, .upload-btn {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.75rem;
     letter-spacing: 0.1em;
@@ -1167,12 +1135,12 @@
       inset 0 1px 0 rgba(232,213,170,0.08);
   }
 
-  .preset-btn:active {
+  .preset-btn:active, .upload-btn:active {
     transform: translateY(1px);
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
   }
 
-  .preset-btn:hover {
+  .preset-btn:hover, .upload-btn:hover {
     border-color: var(--amber);
     color: var(--amber);
   }
@@ -1182,6 +1150,16 @@
     color: var(--amber);
     background: rgba(200,134,42,0.08);
   }
+
+  /* Lit amber, being the way in, and the only things in the source well
+     that take the pointer, so they can be pressed. */
+  .upload-btn {
+    pointer-events: auto;
+    background: rgba(200,134,42,0.04);
+    color: var(--amber);
+    padding: 6px 14px;
+  }
+  .upload-btn:hover { background: rgba(200,134,42,0.1); }
 
 </style>
 </head>
@@ -1289,8 +1267,6 @@
     <ol class="tracklist" id="tracklist"></ol>
     <button type="button" class="add-tracks" id="addTracksBtn">+ Add tracks</button>
     <button type="button" class="add-tracks" id="addFolderBtn">+ Add folder</button>
-    <input type="file" id="addInput" accept="audio/*,.mp3,.wav,.flac,.ogg,.aac" multiple hidden>
-    <input type="file" id="addFolderInput" webkitdirectory multiple hidden>
   </section>
 
   <!-- Presets -->
@@ -1434,13 +1410,11 @@ const vuBars     = [1,2,3,4,5].map(i => document.getElementById('vu'+i));
 const sidePanel  = document.getElementById('sidePanel');
 const tracklist  = document.getElementById('tracklist');
 const addTracksBtn = document.getElementById('addTracksBtn');
-const addInput   = document.getElementById('addInput');
 const filesBtn   = document.getElementById('filesBtn');
 const folderBtn  = document.getElementById('folderBtn');
 const recordOffBtn = document.getElementById('recordOffBtn');
 const folderInput = document.getElementById('folderInput');
 const addFolderBtn = document.getElementById('addFolderBtn');
-const addFolderInput = document.getElementById('addFolderInput');
 const volumeEl   = document.getElementById('volume');
 const volumeVal  = document.getElementById('volumeVal');
 const volumeRow  = document.getElementById('volumeRow');
@@ -1921,7 +1895,8 @@ const isAudio = f => !f.name.startsWith('.') &&
 // album by album, each in track order.
 const folderPaths = new WeakMap();   // File read from a folder -> its path in it
 const pathOf = f => folderPaths.get(f) || f.webkitRelativePath || f.name;
-const byPath = (a, b) => pathOf(a).localeCompare(pathOf(b), undefined, { numeric: true, sensitivity: 'base' });
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+const byPath = (a, b) => collator.compare(pathOf(a), pathOf(b));
 const audioFiles = list => [...list].filter(isAudio).sort(byPath);   // in album order
 
 // "03 - Song.mp3" -> "Song": the band number already says where it sits.
@@ -1940,6 +1915,12 @@ function setPlaylist(files) {
   decodes.clear();
   // A lone file's length comes from decoding it, which starts at once.
   if (tracks.length > 1) tracks.forEach(readDuration);
+  // With a record on, the source buttons add to it; they say so, and the
+  // way to start again appears.
+  const on = recordOn();
+  filesBtn.textContent = on ? 'Add files' : 'Choose files';
+  folderBtn.textContent = on ? 'Add a folder' : 'Choose a folder';
+  recordOffBtn.hidden = !on;
 }
 
 function addToPlaylist(fileList) {
@@ -1948,12 +1929,18 @@ function addToPlaylist(fileList) {
 
 // Rearranging the side moves bands around the one under the needle; it stays
 // the band playing wherever it ends up.
+let nextTimer = 0;
+
 function rearrange(change) {
   const playing = tracks[current];
   change();
   current = tracks.indexOf(playing);
   renderSide();
-  if (isPlaying) prepareNext();   // a different band may now be up next
+  // A different band may now be up next. Decoding it can't be called off
+  // once begun, so a few quick moves would decode several: wait till the
+  // side has settled.
+  clearTimeout(nextTimer);
+  nextTimer = setTimeout(() => { if (isPlaying) prepareNext(); }, 400);
 }
 
 function insertTracks(fileList, at) {
@@ -1969,30 +1956,50 @@ function moveTrack(from, to) {
 }
 
 function removeTrack(i) {
-  const gone = tracks[i];
+  decodes.delete(tracks[i]);
   if (i !== current) {
     rearrange(() => tracks.splice(i, 1));
-    decodes.delete(gone);
     return;
   }
   // The band under the needle is gone. Playing, the needle goes on to the
   // band that followed it, or with none the side has run out. Stopped, it's
   // set down at the start of the band that took its place.
   tracks.splice(i, 1);
-  decodes.delete(gone);
-  if (isPlaying && i < tracks.length) cueTrack(i);
-  else if (isPlaying) endOfSide();
-  else {
-    pausedAt = 0;
-    setStatus('Ready', false);
-    loadTrack(Math.min(i, tracks.length - 1), { autoplay: false });
-  }
+  if (isPlaying && i === tracks.length) endOfSide();
+  else cueTrack(Math.min(i, tracks.length - 1), { autoplay: isPlaying });
 }
 
 // The tracklist wants every length up front, but decoding a file to learn
 // it costs its whole decoded size. The browser can read just the length
 // from the file's header instead; the decoded length replaces it later.
+// A folder can bring a hundred bands at once, and each probe is a media
+// player, so they're read a few at a time, and a band taken off the side
+// before its turn isn't read at all.
+const PROBES_AT_ONCE = 4;
+const probeQueue = [];
+let probing = 0;
+
 function readDuration(track) {
+  probeQueue.push(track);
+  nextProbe();
+}
+
+function nextProbe() {
+  while (probing < PROBES_AT_ONCE && probeQueue.length) {
+    const track = probeQueue.shift();
+    if (track.duration !== null || !tracks.includes(track)) continue;
+    probing++;
+    probeDuration(track, () => { probing--; nextProbe(); });
+  }
+}
+
+// Lengths arrive in a burst; the tracklist is redrawn once a frame for them.
+let sideFrame = 0;
+function renderSideSoon() {
+  if (!sideFrame) sideFrame = requestAnimationFrame(() => { sideFrame = 0; renderSide(); });
+}
+
+function probeDuration(track, finished) {
   try {
     const url = URL.createObjectURL(track.file);
     const probe = new Audio();
@@ -2003,18 +2010,19 @@ function readDuration(track) {
       probe.removeAttribute('src');
       probe.load();
       URL.revokeObjectURL(url);
+      finished();
     };
     probe.preload = 'metadata';
     probe.onloadedmetadata = () => {
       if (track.duration === null && isFinite(probe.duration)) {
         track.duration = probe.duration;
-        renderSide();
+        renderSideSoon();
       }
       done();
     };
     probe.onerror = done;
     probe.src = url;
-  } catch (e) { /* the decoded length will fill it in */ }
+  } catch (e) { finished(); /* the decoded length will fill it in */ }
 }
 
 // Decoded audio is large (60-70MB per three minutes), so only the band
@@ -2107,11 +2115,13 @@ async function loadTrack(i, { autoplay = true } = {}) {
   }
 }
 
-// Put the needle on a band, as if lowering it by hand.
-function cueTrack(i) {
+// Put the needle on a band, as if lowering it by hand — or, without
+// autoplay, set it ready over the band's start.
+function cueTrack(i, { autoplay = true } = {}) {
   if (isPlaying) pausePlayback();
   pausedAt = 0;
-  loadTrack(i);
+  if (!autoplay) setStatus('Ready', false);
+  loadTrack(i, { autoplay });
 }
 
 // Where the needle is across the whole side, 0-1. `elapsed` runs negative
@@ -2134,11 +2144,6 @@ function sidePosition(elapsed) {
 // rebuilt, so keyboard focus survives lengths arriving. Row i always shows
 // band i: moving a band rewrites the rows, it doesn't move them.
 function renderSide() {
-  // With a record on, the source buttons add to it; they say so, and the
-  // way to start again appears.
-  filesBtn.textContent = recordOn() ? 'Add files' : 'Choose files';
-  folderBtn.textContent = recordOn() ? 'Add a folder' : 'Choose a folder';
-  recordOffBtn.hidden = !recordOn();
   sidePanel.hidden = tracks.length < 2;
   if (sidePanel.hidden) { tracklist.replaceChildren(); return; }
   while (tracklist.children.length > tracks.length) tracklist.lastChild.remove();
@@ -2396,16 +2401,10 @@ function putOnRecord(fileList) {
 // the record off first, puts a new record on.
 const takeFiles = files => recordOn() ? addToPlaylist(files) : putOnRecord(files);
 
-fileInput.addEventListener('change', e => {
-  takeFiles(e.target.files);
-  e.target.value = '';   // choosing the same files again should still load
-});
-
-addTracksBtn.addEventListener('click', () => addInput.click());
-addInput.addEventListener('change', e => {
-  addToPlaylist(e.target.files);
-  e.target.value = '';
-});
+[fileInput, folderInput].forEach(input => input.addEventListener('change', () => {
+  takeFiles(input.files);
+  input.value = '';   // choosing the same files again should still load
+}));
 
 // The browser's folder picker takes one folder, with everything under it:
 // to put several albums on, choose the folder that holds them.
@@ -2414,8 +2413,8 @@ addInput.addEventListener('change', e => {
 // asks to let the site view the files, which is what happens. Other browsers
 // get the folder input; Chrome's prompt for that one talks of uploading,
 // though nothing leaves the computer.
-async function chooseFolder(input, use) {
-  if (!window.showDirectoryPicker) { input.click(); return; }
+async function chooseFolder() {
+  if (!window.showDirectoryPicker) { folderInput.click(); return; }
   let dir;
   try {
     // The id brings the picker back to the last folder chosen.
@@ -2426,68 +2425,64 @@ async function chooseFolder(input, use) {
     console.error(e);
     return;
   }
-  const status = [statusText.textContent, statusDot.classList.contains('active')];
-  setStatus('Reading folder…', false);
+  // With a record on, the status line is the record's; adding goes quietly.
+  if (!recordOn()) setStatus('Reading folder…', false);
   const files = [];
   await readFolder(dir, '/' + dir.name, files);
-  if (!audioFiles(files).length) {
+  if (!files.some(isAudio)) {
     setStatus('No audio files in that folder', false);
     return;
   }
-  setStatus(...status);
-  use(files);
+  takeFiles(files);
 }
 
+// Everything in a folder is read at once, sub-folders included.
 async function readFolder(dir, at, files) {
+  const reads = [];
   for await (const handle of dir.values()) {
     const path = at + '/' + handle.name;
-    if (handle.kind === 'directory') {
-      await readFolder(handle, path, files);
-    } else {
-      try {
-        const file = await handle.getFile();
-        folderPaths.set(file, path);
-        files.push(file);
-      } catch { /* unreadable: leave it off the side */ }
+    if (handle.kind === 'directory') reads.push(readFolder(handle, path, files));
+    else if (!handle.name.startsWith('.')) {
+      reads.push(handle.getFile().then(file => found(files, file, path),
+        () => { /* unreadable: leave it off the side */ }));
     }
   }
+  await Promise.all(reads);
 }
 
-filesBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
-folderBtn.addEventListener('click', e => { e.stopPropagation(); chooseFolder(folderInput, takeFiles); });
-folderInput.addEventListener('change', e => {
-  takeFiles(e.target.files);
-  e.target.value = '';
-});
-addFolderBtn.addEventListener('click', () => chooseFolder(addFolderInput, addToPlaylist));
-addFolderInput.addEventListener('change', e => {
-  addToPlaylist(e.target.files);
-  e.target.value = '';
-});
+// A file found in a folder keeps its path in it, for sorting.
+function found(files, file, path) {
+  folderPaths.set(file, path);
+  files.push(file);
+}
+
+// "Choose files" just lets the click reach the zone, which opens the files
+// dialog; the side's add buttons reuse the source's ways in.
+folderBtn.addEventListener('click', e => { e.stopPropagation(); chooseFolder(); });
+addTracksBtn.addEventListener('click', () => fileInput.click());
+addFolderBtn.addEventListener('click', chooseFolder);
 
 // Taking the record off leaves the deck as the page opened, so the next
-// files chosen put a new record on.
-const blankLabel = labelText.innerHTML;
+// files chosen put a new record on. The blank deck is read from the page
+// as it loaded.
+const blankDeck = {
+  name: trackName.textContent,
+  time: trackTime.textContent,
+  label: labelText.innerHTML,
+  status: statusText.textContent,
+};
 
 function takeRecordOff() {
   ++loadSeq;   // nothing still loading lands afterwards
-  if (isPlaying) stopSources();
-  sourceNode = null;
-  setTransportUI(false);
-  tracks = [];
-  current = 0;
-  decodes.clear();
+  if (audioBuffer) stopPlayback();   // nothing to stop until a band has loaded
+  setPlaylist([]);
   audioBuffer = null;
-  pausedAt = 0;
   playBtn.disabled = true;
-  trackName.textContent = 'No file loaded';
-  labelText.innerHTML = blankLabel;
-  trackTime.textContent = '--:-- / --:--';
-  progressFill.style.width = '0%';
+  trackName.textContent = blankDeck.name;
+  trackTime.textContent = blankDeck.time;
+  labelText.innerHTML = blankDeck.label;
   progressWrap.style.removeProperty('--tick');
-  armLine.style.removeProperty('--arm');
-  armShown = null;
-  setStatus('Standby', false);
+  setStatus(blankDeck.status, false);
   renderSide();
 }
 
@@ -2656,9 +2651,7 @@ async function droppedFiles(dt) {
 async function walkEntry(entry, files, unread) {
   if (entry.isFile) {
     try {
-      const file = await new Promise((ok, fail) => entry.file(ok, fail));
-      folderPaths.set(file, entry.fullPath);
-      files.push(file);
+      found(files, await new Promise((ok, fail) => entry.file(ok, fail)), entry.fullPath);
     } catch { unread.push(entry); }
   } else if (entry.isDirectory) {
     // A directory reader hands back its entries a batch at a time.
@@ -2690,7 +2683,7 @@ window.addEventListener('drop', e => e.preventDefault());
 function removeFromSide(i) {
   removeTrack(i);
   const row = tracklist.children[Math.min(i, tracks.length - 1)];
-  if (!sidePanel.hidden && row) row.querySelector('.track-remove').focus();
+  if (row) row.querySelector('.track-remove').focus();
   else playBtn.focus();
 }
 
@@ -2709,42 +2702,43 @@ function nudgeTrack(e, i) {
 // A mouse can pick a band up anywhere on its row; a finger only by the grip,
 // so the list still scrolls under a finger.
 const LIFT_PX = 4;
-let bandDrag = null;
-let swallowClick = false;
+let bandDrag = null;   // { id, rows, from, to, startY, mids once lifted }
+
+const rowMid = r => { const b = r.getBoundingClientRect(); return b.top + b.height / 2; };
 
 tracklist.addEventListener('pointerdown', e => {
-  swallowClick = false;   // a new press: whatever the last drag left is done with
   if (e.button !== 0 || e.target.closest('.track-remove')) return;
   const row = e.target.closest('.band');
   if (!row) return;
   if (e.pointerType === 'touch' && !e.target.closest('.band-grip')) return;
   const rows = [...tracklist.children];
   const from = rows.indexOf(row);
-  bandDrag = { id: e.pointerId, row, rows, from, to: from, startY: e.clientY, lifted: false };
+  bandDrag = { id: e.pointerId, rows, from, to: from, startY: e.clientY };
 });
 
 document.addEventListener('pointermove', e => {
   const d = bandDrag;
   if (!d || e.pointerId !== d.id) return;
   let dy = e.clientY - d.startY;
-  if (!d.lifted) {
+  if (!d.mids) {
     if (Math.abs(dy) < LIFT_PX) return;
-    d.lifted = true;
-    d.mids = d.rows.map(r => { const b = r.getBoundingClientRect(); return b.top + b.height / 2; });
+    d.mids = d.rows.map(rowMid);
     d.pitch = d.mids[1] - d.mids[0];
     tracklist.classList.add('arranging');
-    d.row.classList.add('lifted');
+    d.rows[d.from].classList.add('lifted');
   }
   // It travels the length of the side, no further.
   dy = Math.min(Math.max(dy, d.mids[0] - d.mids[d.from]), d.mids[d.mids.length - 1] - d.mids[d.from]);
-  d.row.style.transform = `translateY(${dy}px)`;
+  d.rows[d.from].style.transform = `translateY(${dy}px)`;
   // It passes a row once its centre reaches that row's: going down, the rows
   // below; going up, the rows above. Reaching counts, so a band held against
   // either end of the side, where it stops, lands there.
   const centre = d.mids[d.from] + dy;
   const below = d.mids.filter((m, j) => j > d.from && centre >= m).length;
   const above = d.mids.filter((m, j) => j < d.from && centre <= m).length;
-  d.to = d.from + below - above;
+  const to = d.from + below - above;
+  if (to === d.to) return;   // the rows already stand aside for it
+  d.to = to;
   d.rows.forEach((r, j) => {
     if (j === d.from) return;
     const shift = (j > d.from && j <= d.to) ? -d.pitch : (j >= d.to && j < d.from) ? d.pitch : 0;
@@ -2756,40 +2750,33 @@ function setBandDown(e) {
   const d = bandDrag;
   if (!d || e.pointerId !== d.id) return;
   bandDrag = null;
-  if (!d.lifted) return;
+  if (!d.mids) return;
   const placed = e.type === 'pointerup';
   // Placed, the rows take their new contents where they stand, so they must
   // stand still; cancelled, they glide back.
   if (placed) tracklist.classList.add('settling');
   d.rows.forEach(r => { r.style.transform = ''; });
-  d.row.classList.remove('lifted');
+  d.rows[d.from].classList.remove('lifted');
   tracklist.classList.remove('arranging');
   if (placed) {
     moveTrack(d.from, d.to);
-    // Letting go isn't also a click on the band. The flag is cleared by the
-    // click it swallows, the next press, or failing both, a moment later.
-    swallowClick = true;
-    setTimeout(() => { swallowClick = false; }, 300);
     requestAnimationFrame(() => tracklist.classList.remove('settling'));
   }
 }
 document.addEventListener('pointerup', setBandDown);
 document.addEventListener('pointercancel', setBandDown);
-tracklist.addEventListener('click', e => {
-  if (!swallowClick) return;
-  swallowClick = false;
-  e.stopPropagation();
-  e.preventDefault();
-}, true);
 
 // Files dragged over the side go in between bands, where the line shows.
 function insertionPoint(e) {
   const rows = [...tracklist.children];
-  const at = rows.findIndex(r => { const b = r.getBoundingClientRect(); return e.clientY < b.top + b.height / 2; });
+  const at = rows.findIndex(r => e.clientY < rowMid(r));
   return at < 0 ? rows.length : at;
 }
 
+let insertionShown = -1;
 function showInsertion(at) {
+  if (at === insertionShown) return;   // dragover repeats while the pointer rests
+  insertionShown = at;
   [...tracklist.children].forEach((r, j) => {
     r.classList.toggle('insert-before', j === at);
     r.classList.toggle('insert-after', j === at - 1 && at === tracks.length);
