@@ -1915,8 +1915,8 @@ const isAudio = f => !f.name.startsWith('.') &&
   ((f.type && f.type.startsWith('audio/')) || AUDIO_EXT.test(f.name));
 // Files from a folder carry their path within it, so several albums sort
 // album by album, each in track order.
-const dropPaths = new WeakMap();   // dropped File -> its path in the folder
-const pathOf = f => dropPaths.get(f) || f.webkitRelativePath || f.name;
+const folderPaths = new WeakMap();   // File read from a folder -> its path in it
+const pathOf = f => folderPaths.get(f) || f.webkitRelativePath || f.name;
 const byPath = (a, b) => pathOf(a).localeCompare(pathOf(b), undefined, { numeric: true, sensitivity: 'base' });
 const audioFiles = list => [...list].filter(isAudio).sort(byPath);   // in album order
 
@@ -2395,13 +2395,55 @@ addInput.addEventListener('change', e => {
 
 // The browser's folder picker takes one folder, with everything under it:
 // to put several albums on, choose the folder that holds them.
+//
+// Chrome and Edge can open a folder to read in place. Their prompt for that
+// asks to let the site view the files, which is what happens. Other browsers
+// get the folder input; Chrome's prompt for that one talks of uploading,
+// though nothing leaves the computer.
+async function chooseFolder(input, use) {
+  if (!window.showDirectoryPicker) { input.click(); return; }
+  let dir;
+  try {
+    // The id brings the picker back to the last folder chosen.
+    dir = await window.showDirectoryPicker({ id: 'music', startIn: 'music', mode: 'read' });
+  } catch (e) {
+    if (e.name === 'AbortError') return;   // cancelled
+    setStatus("Couldn't open that folder", false);
+    console.error(e);
+    return;
+  }
+  setStatus('Reading folder…', false);
+  const files = [];
+  await readFolder(dir, '/' + dir.name, files);
+  if (!audioFiles(files).length) {
+    setStatus('No audio files in that folder', false);
+    return;
+  }
+  use(files);
+}
+
+async function readFolder(dir, at, files) {
+  for await (const handle of dir.values()) {
+    const path = at + '/' + handle.name;
+    if (handle.kind === 'directory') {
+      await readFolder(handle, path, files);
+    } else {
+      try {
+        const file = await handle.getFile();
+        folderPaths.set(file, path);
+        files.push(file);
+      } catch { /* unreadable: leave it off the side */ }
+    }
+  }
+}
+
 filesBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
-folderBtn.addEventListener('click', e => { e.stopPropagation(); folderInput.click(); });
+folderBtn.addEventListener('click', e => { e.stopPropagation(); chooseFolder(folderInput, putOnRecord); });
 folderInput.addEventListener('change', e => {
   putOnRecord(e.target.files);
   e.target.value = '';
 });
-addFolderBtn.addEventListener('click', () => addFolderInput.click());
+addFolderBtn.addEventListener('click', () => chooseFolder(addFolderInput, addToPlaylist));
 addFolderInput.addEventListener('change', e => {
   addToPlaylist(e.target.files);
   e.target.value = '';
@@ -2555,7 +2597,7 @@ async function droppedFiles(dt) {
     .map(item => item.webkitGetAsEntry && item.webkitGetAsEntry())
     .filter(entry => entry && entry.isDirectory);
   if (!folders.length) return loose;
-  loose.forEach(f => dropPaths.set(f, '/' + f.name));   // sorts among the folders
+  loose.forEach(f => folderPaths.set(f, '/' + f.name));   // sorts among the folders
   const found = [], unread = [];
   await Promise.all(folders.map(entry => walkEntry(entry, found, unread)));
   if (unread.length && !found.length) {
@@ -2568,7 +2610,7 @@ async function walkEntry(entry, files, unread) {
   if (entry.isFile) {
     try {
       const file = await new Promise((ok, fail) => entry.file(ok, fail));
-      dropPaths.set(file, entry.fullPath);
+      folderPaths.set(file, entry.fullPath);
       files.push(file);
     } catch { unread.push(entry); }
   } else if (entry.isDirectory) {
