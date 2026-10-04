@@ -2130,6 +2130,7 @@ function sidePosition(elapsed) {
 // rebuilt, so keyboard focus survives lengths arriving. Row i always shows
 // band i: moving a band rewrites the rows, it doesn't move them.
 function renderSide() {
+  filesBtn.textContent = recordOn() ? 'Add files' : 'Choose files';
   sidePanel.hidden = tracks.length < 2;
   if (sidePanel.hidden) { tracklist.replaceChildren(); return; }
   while (tracklist.children.length > tracks.length) tracklist.lastChild.remove();
@@ -2382,8 +2383,12 @@ function putOnRecord(fileList) {
   cueTrack(0);
 }
 
+// With a record on, files chosen join the side after the last band, as
+// "Add to side" does for a drop; the button says so. Dragging to "Play now"
+// or choosing a folder still puts a new record on.
 fileInput.addEventListener('change', e => {
-  putOnRecord(e.target.files);
+  if (recordOn()) addToPlaylist(e.target.files);
+  else putOnRecord(e.target.files);
   e.target.value = '';   // choosing the same files again should still load
 });
 
