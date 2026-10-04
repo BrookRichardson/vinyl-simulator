@@ -1889,14 +1889,18 @@ let current = 0;             // the band the needle is on
 const decodes = new Map();   // band -> Promise<AudioBuffer>
 
 const AUDIO_EXT = /\.(mp3|wav|flac|ogg|oga|aac|m4a|opus|weba)$/i;
-// Dot-files are skipped: macOS leaves "._01 Song.mp3" shadows beside the
-// real ones, which look like audio by name but aren't.
-const isAudio = f => !f.name.startsWith('.') &&
-  ((f.type && f.type.startsWith('audio/')) || AUDIO_EXT.test(f.name));
 // Files from a folder carry their path within it, so several albums sort
 // album by album, each in track order.
 const folderPaths = new WeakMap();   // File read from a folder -> its path in it
 const pathOf = f => folderPaths.get(f) || f.webkitRelativePath || f.name;
+// Anything hidden is skipped: macOS leaves "._01 Song.mp3" shadows beside
+// the real ones, which look like audio by name but aren't, and drives keep
+// hidden folders (.Trashes, .Trash-1000, .AppleDouble) of deleted or shadow
+// copies. The folder chosen or dropped itself counts whatever its name.
+const hidden = entry => entry.name.startsWith('.');
+const inHiddenFolder = f => pathOf(f).replace(/^\//, '').split('/').slice(1, -1).some(s => s.startsWith('.'));
+const isAudio = f => !hidden(f) && !inHiddenFolder(f) &&
+  ((f.type && f.type.startsWith('audio/')) || AUDIO_EXT.test(f.name));
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 const byPath = (a, b) => collator.compare(pathOf(a), pathOf(b));
 const audioFiles = list => [...list].filter(isAudio).sort(byPath);   // in album order
@@ -2451,9 +2455,10 @@ async function readFolder(dir, at, files) {
   const reads = [];
   try {
     for await (const handle of dir.values()) {
+      if (hidden(handle)) continue;   // not read at all: a drive's trash can be large
       const path = at + '/' + handle.name;
       if (handle.kind === 'directory') reads.push(readFolder(handle, path, files));
-      else if (!handle.name.startsWith('.')) {
+      else {
         reads.push(handle.getFile().then(file => found(files, file, path),
           () => { /* unreadable: leave it off the side */ }));
       }
@@ -2671,7 +2676,7 @@ async function walkEntry(entry, files, unread) {
     let batch;
     do {
       batch = await new Promise(ok => reader.readEntries(ok, () => { unread.push(entry); ok([]); }));
-      await Promise.all(batch.map(child => walkEntry(child, files, unread)));
+      await Promise.all(batch.filter(child => !hidden(child)).map(child => walkEntry(child, files, unread)));
     } while (batch.length);
   }
 }
