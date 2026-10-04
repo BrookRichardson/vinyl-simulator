@@ -1100,6 +1100,8 @@
   }
 
   .add-tracks:hover { color: var(--cream); }
+  .add-tracks[hidden] { display: none; }
+  .record-off { display: block; margin-left: auto; }
   .add-tracks:active { transform: translateY(1px); }
 
   /* === PRESETS === */
@@ -1233,6 +1235,7 @@
         <div class="drop-half" data-action="add">Add to side<small>plays after the last track</small></div>
       </div>
     </div>
+    <button type="button" class="add-tracks record-off" id="recordOffBtn" hidden>Take the record off</button>
     <input type="file" id="folderInput" webkitdirectory multiple hidden>
   </section>
 
@@ -1434,6 +1437,7 @@ const addTracksBtn = document.getElementById('addTracksBtn');
 const addInput   = document.getElementById('addInput');
 const filesBtn   = document.getElementById('filesBtn');
 const folderBtn  = document.getElementById('folderBtn');
+const recordOffBtn = document.getElementById('recordOffBtn');
 const folderInput = document.getElementById('folderInput');
 const addFolderBtn = document.getElementById('addFolderBtn');
 const addFolderInput = document.getElementById('addFolderInput');
@@ -2130,7 +2134,11 @@ function sidePosition(elapsed) {
 // rebuilt, so keyboard focus survives lengths arriving. Row i always shows
 // band i: moving a band rewrites the rows, it doesn't move them.
 function renderSide() {
+  // With a record on, the source buttons add to it; they say so, and the
+  // way to start again appears.
   filesBtn.textContent = recordOn() ? 'Add files' : 'Choose files';
+  folderBtn.textContent = recordOn() ? 'Add a folder' : 'Choose a folder';
+  recordOffBtn.hidden = !recordOn();
   sidePanel.hidden = tracks.length < 2;
   if (sidePanel.hidden) { tracklist.replaceChildren(); return; }
   while (tracklist.children.length > tracks.length) tracklist.lastChild.remove();
@@ -2383,12 +2391,13 @@ function putOnRecord(fileList) {
   cueTrack(0);
 }
 
-// With a record on, files chosen join the side after the last band, as
-// "Add to side" does for a drop; the button says so. Dragging to "Play now"
-// or choosing a folder still puts a new record on.
+// With a record on, files and folders chosen join the side after the last
+// band, as "Add to side" does for a drop. Dragging to "Play now", or taking
+// the record off first, puts a new record on.
+const takeFiles = files => recordOn() ? addToPlaylist(files) : putOnRecord(files);
+
 fileInput.addEventListener('change', e => {
-  if (recordOn()) addToPlaylist(e.target.files);
-  else putOnRecord(e.target.files);
+  takeFiles(e.target.files);
   e.target.value = '';   // choosing the same files again should still load
 });
 
@@ -2417,6 +2426,7 @@ async function chooseFolder(input, use) {
     console.error(e);
     return;
   }
+  const status = [statusText.textContent, statusDot.classList.contains('active')];
   setStatus('Reading folder…', false);
   const files = [];
   await readFolder(dir, '/' + dir.name, files);
@@ -2424,6 +2434,7 @@ async function chooseFolder(input, use) {
     setStatus('No audio files in that folder', false);
     return;
   }
+  setStatus(...status);
   use(files);
 }
 
@@ -2443,15 +2454,46 @@ async function readFolder(dir, at, files) {
 }
 
 filesBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
-folderBtn.addEventListener('click', e => { e.stopPropagation(); chooseFolder(folderInput, putOnRecord); });
+folderBtn.addEventListener('click', e => { e.stopPropagation(); chooseFolder(folderInput, takeFiles); });
 folderInput.addEventListener('change', e => {
-  putOnRecord(e.target.files);
+  takeFiles(e.target.files);
   e.target.value = '';
 });
 addFolderBtn.addEventListener('click', () => chooseFolder(addFolderInput, addToPlaylist));
 addFolderInput.addEventListener('change', e => {
   addToPlaylist(e.target.files);
   e.target.value = '';
+});
+
+// Taking the record off leaves the deck as the page opened, so the next
+// files chosen put a new record on.
+const blankLabel = labelText.innerHTML;
+
+function takeRecordOff() {
+  ++loadSeq;   // nothing still loading lands afterwards
+  if (isPlaying) stopSources();
+  sourceNode = null;
+  setTransportUI(false);
+  tracks = [];
+  current = 0;
+  decodes.clear();
+  audioBuffer = null;
+  pausedAt = 0;
+  playBtn.disabled = true;
+  trackName.textContent = 'No file loaded';
+  labelText.innerHTML = blankLabel;
+  trackTime.textContent = '--:-- / --:--';
+  progressFill.style.width = '0%';
+  progressWrap.style.removeProperty('--tick');
+  armLine.style.removeProperty('--arm');
+  armShown = null;
+  setStatus('Standby', false);
+  renderSide();
+}
+
+recordOffBtn.addEventListener('click', () => {
+  takeRecordOff();
+  filesBtn.focus();   // the button pressed has gone; carry on from where a new record starts
 });
 
 // ─── Seek on progress bar click ──────────────────────────
